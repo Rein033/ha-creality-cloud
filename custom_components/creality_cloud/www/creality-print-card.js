@@ -1,4 +1,4 @@
-/* Creality Print Card: a 3D printer card for the Creality Cloud integration, that also understands the
+/* Creality Print Card and Creality Print Group Card, for the Creality Cloud integration. They also understand the
  * Anycubic Cloud integration (anycubic_cloud).
  *
  *   type: custom:creality-print-card
@@ -9,10 +9,14 @@
  *   show_temperatures: true
  *   show_controls: true                 # pause / resume / cancel and the light button
  *   show_view_switch: true              # the printer / preview switch on the card
+ *   show_history: true                  # history button: recent prints, timelapse and print again (Creality Cloud)
  *
- * Everything can also be set in the visual editor (CrealityPrintCardEditor below).
- * Entities are matched on their translation_key, so renaming them in Home Assistant does not break the card.
- * The printer drawings are original artwork for this card. Served by the integration itself (see __init__.py). */
+ *   type: custom:creality-print-group-card
+ *   title: Printers                     # optional
+ *   entities: [sensor.k1_max_status, sensor.kobra_s1_job_progress]   # optional, default: every printer
+ *
+ * Both cards have a visual editor. Entities are matched on their translation_key, so renaming them does not break
+ * anything. The printer drawings are original artwork. Served by the integration itself (see __init__.py). */
 
 /* role -> translation_key per integration */
 const ADAPTERS = {
@@ -22,9 +26,10 @@ const ADAPTERS = {
       status: 'status', progress: 'progress', remaining: 'time_remaining', ends: 'print_end', job: 'job_name',
       nozzle: 'nozzle_temperature', nozzle_target: 'nozzle_target', bed: 'bed_temperature', bed_target: 'bed_target',
       extra: 'chamber_temperature', online: 'online', pause: 'pause', resume: 'resume', cancel: 'cancel', light: 'light',
-      thumbnail: 'thumbnail', error: 'error_code',
+      thumbnail: 'thumbnail', error: 'error_code', history: 'last_print', reprint: 'reprint_last', firmware: 'firmware',
     },
     extraLabel: 'chamber',
+    anchor: 'status',
     state(c) { return c.str('status'); },
   },
   anycubic_cloud: {
@@ -39,6 +44,7 @@ const ADAPTERS = {
       slot3: 'ace_slot_3', slot4: 'ace_slot_4', error: 'last_error',
     },
     extraLabel: 'ace',
+    anchor: 'job_progress',
     state(c) {
       if (c.on('paused')) return 'paused';
       if (c.on('busy')) return 'printing';
@@ -50,38 +56,150 @@ const ADAPTERS = {
 };
 
 const STATUS = {
-  printing: { color: 'var(--cpc-accent)', icon: 'mdi:printer-3d-nozzle' },
+  printing: { color: 'var(--cpc-accent, var(--primary-color))', icon: 'mdi:printer-3d-nozzle' },
   paused: { color: 'var(--warning-color, #f59e0b)', icon: 'mdi:pause-circle' },
   finished: { color: 'var(--success-color, #22c55e)', icon: 'mdi:check-circle' },
   failed: { color: 'var(--error-color, #ef4444)', icon: 'mdi:alert-circle' },
   stopped: { color: 'var(--error-color, #ef4444)', icon: 'mdi:stop-circle' },
+  waiting: { color: 'var(--secondary-text-color)', icon: 'mdi:timer-sand' },
   idle: { color: 'var(--secondary-text-color)', icon: 'mdi:printer-3d' },
   offline: { color: 'var(--disabled-text-color, #888)', icon: 'mdi:cloud-off-outline' },
 };
 
 const TEXT = {
-  en: { printing: 'Printing', paused: 'Paused', finished: 'Finished', failed: 'Failed', stopped: 'Stopped', idle: 'Idle',
-    offline: 'Offline', unknown: 'Unknown', remaining: 'Remaining', ends: 'Ready at', nozzle: 'Nozzle', bed: 'Bed',
+  en: { printing: 'Printing', paused: 'Paused', finished: 'Finished', failed: 'Failed', stopped: 'Cancelled', idle: 'Idle',
+    waiting: 'Waiting', offline: 'Offline', unknown: 'Unknown', remaining: 'Remaining', ends: 'Ready at', nozzle: 'Nozzle', bed: 'Bed',
     chamber: 'Chamber', ace: 'ACE', pause: 'Pause', resume: 'Resume', cancel: 'Cancel', light: 'Light', noJob: 'No print running',
     confirm: 'Cancel the print on %s? This cannot be undone.', notFound: 'Printer not found. Pick an entity of the Creality Cloud or Anycubic Cloud integration.',
     error: 'Error', material: 'Material', layerHeight: 'Layer', layers: 'Layers', filament: 'Filament', slicer: 'Slicer',
-    estimate: 'Estimate', viewPrinter: 'Printer', viewPreview: 'Preview',
+    estimate: 'Estimate', viewPrinter: 'Printer', viewPreview: 'Preview', history: 'Print history', noHistory: 'No prints yet.',
+    timelapse: 'Timelapse', reprint: 'Print again', reprintConfirm: 'Print "%s" again on %s?', reprintBusy: 'Possible when the printer is online and idle',
+    reprintNotOnPrinter: 'This file is not on the printer', close: 'Close', update: 'Update', updateTitle: 'Firmware %s is available',
+    groupTitle: 'Printers', noPrinters: 'No printers found.', sent: 'Sent to the printer',
     e_entity: 'Printer (any entity of it)', e_name: 'Name (optional)', e_view: 'Start view', e_show_slicer: 'Show slicer info',
-    e_show_temperatures: 'Show temperatures', e_show_controls: 'Show buttons (pause, cancel, light)', e_show_view_switch: 'Show printer / preview switch' },
-  nl: { printing: 'Printen', paused: 'Gepauzeerd', finished: 'Klaar', failed: 'Mislukt', stopped: 'Gestopt', idle: 'Vrij',
-    offline: 'Offline', unknown: 'Onbekend', remaining: 'Nog', ends: 'Klaar om', nozzle: 'Nozzle', bed: 'Bed',
+    e_show_temperatures: 'Show temperatures', e_show_controls: 'Show buttons (pause, cancel, light)', e_show_view_switch: 'Show printer / preview switch',
+    e_show_history: 'Show history button (timelapse, print again)', e_title: 'Title', e_entities: 'Printers (empty = all printers)',
+    e_show_idle: 'Also show idle and offline printers' },
+  nl: { printing: 'Printen', paused: 'Gepauzeerd', finished: 'Klaar', failed: 'Mislukt', stopped: 'Geannuleerd', idle: 'Vrij',
+    waiting: 'Wachten', offline: 'Offline', unknown: 'Onbekend', remaining: 'Nog', ends: 'Klaar om', nozzle: 'Nozzle', bed: 'Bed',
     chamber: 'Kast', ace: 'ACE', pause: 'Pauzeren', resume: 'Hervatten', cancel: 'Annuleren', light: 'Licht', noJob: 'Er loopt geen print',
     confirm: 'De print op %s echt annuleren? Dit kun je niet terugdraaien.', notFound: 'Printer niet gevonden. Kies een entiteit van de Creality Cloud- of Anycubic Cloud-integratie.',
     error: 'Fout', material: 'Materiaal', layerHeight: 'Laag', layers: 'Lagen', filament: 'Filament', slicer: 'Slicer',
-    estimate: 'Schatting', viewPrinter: 'Printer', viewPreview: 'Voorbeeld',
+    estimate: 'Schatting', viewPrinter: 'Printer', viewPreview: 'Voorbeeld', history: 'Printgeschiedenis', noHistory: 'Nog geen prints.',
+    timelapse: 'Timelapse', reprint: 'Opnieuw printen', reprintConfirm: '"%s" opnieuw printen op %s?', reprintBusy: 'Kan als de printer online en vrij is',
+    reprintNotOnPrinter: 'Dit bestand staat niet op de printer', close: 'Sluiten', update: 'Update', updateTitle: 'Firmware %s is beschikbaar',
+    groupTitle: 'Printers', noPrinters: 'Geen printers gevonden.', sent: 'Verstuurd naar de printer',
     e_entity: 'Printer (een willekeurige entiteit ervan)', e_name: 'Naam (optioneel)', e_view: 'Startweergave', e_show_slicer: 'Slicer-info tonen',
-    e_show_temperatures: 'Temperaturen tonen', e_show_controls: 'Knoppen tonen (pauzeren, annuleren, licht)', e_show_view_switch: 'Wisselknop printer / voorbeeld tonen' },
+    e_show_temperatures: 'Temperaturen tonen', e_show_controls: 'Knoppen tonen (pauzeren, annuleren, licht)', e_show_view_switch: 'Wisselknop printer / voorbeeld tonen',
+    e_show_history: 'Geschiedenisknop tonen (timelapse, opnieuw printen)', e_title: 'Titel', e_entities: 'Printers (leeg = alle printers)',
+    e_show_idle: 'Ook vrije en offline printers tonen' },
 };
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SECONDS = { s: 1, min: 60, h: 3600, d: 86400 };
 const isHex = (c) => /^#[0-9a-f]{6}$/i.test(c || '');
 let uid = 0;
+
+function tr(hass, k) {
+  const lang = (hass && hass.locale && hass.locale.language || 'en').split('-')[0];
+  return (TEXT[lang] || TEXT.en)[k] ?? TEXT.en[k] ?? k;
+}
+
+function cleanJob(name) {
+  return String(name || '').split('/').pop().replace(/\.gcode$/i, '')
+    .replace(/(\.stl)?_[A-Z][A-Z0-9+-]*(_0\.\d+)?_(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/, '').replace(/^\d{4}-\d{4}-/, '');
+}
+
+function dur(sec) {
+  if (sec == null) return '–';
+  const m = Math.round(sec / 60);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
+}
+
+function fmtLength(v, unit) {
+  if (isNaN(v)) return null;
+  if (unit === 'g') return `${Math.round(v)} g`;
+  const mm = unit === 'm' ? v * 1000 : unit === 'cm' ? v * 10 : v;
+  return mm >= 1000 ? `${(mm / 1000).toFixed(1)} m` : `${Math.round(mm)} mm`;
+}
+
+/* All printers of both integrations: [{entity, platform, device_id}] (one anchor entity per device). */
+function allPrinters(hass) {
+  const out = [];
+  for (const e of Object.values(hass.entities || {})) {
+    const A = ADAPTERS[e.platform];
+    if (A && e.translation_key === A.anchor && e.device_id) out.push({ entity: e.entity_id, platform: e.platform, device_id: e.device_id });
+  }
+  return out;
+}
+
+/* Everything the cards show about one printer, in one shape for both integrations. */
+function snapshot(hass, entityId, name) {
+  const first = (hass.entities || {})[entityId];
+  const A = first && ADAPTERS[first.platform];
+  if (!first || !first.device_id || !A) return null;
+  const wanted = Object.fromEntries(Object.entries(A.roles).map(([role, tk]) => [tk, role]));
+  const ids = {};
+  for (const e of Object.values(hass.entities)) {
+    if (e.device_id === first.device_id && e.platform === first.platform && wanted[e.translation_key]) ids[wanted[e.translation_key]] = e.entity_id;
+  }
+  if (!Object.keys(ids).length) return null;
+
+  const st = (r) => { const s = ids[r] && hass.states[ids[r]]; return s && !['unavailable', 'unknown'].includes(s.state) ? s : null; };
+  const c = {
+    str: (r) => (st(r) ? st(r).state : null),
+    num: (r) => { const s = st(r); const n = s ? parseFloat(s.state) : NaN; return isNaN(n) ? null : n; },
+    on: (r) => (ids[r] && hass.states[ids[r]] || {}).state === 'on',
+    secs: (r) => { const s = st(r); const n = s ? parseFloat(s.state) : NaN; return isNaN(n) ? null : n * (SECONDS[s.attributes.unit_of_measurement] || 1); },
+  };
+  const online = !ids.online || c.on('online');
+  const state = !online ? 'offline' : (A.state(c) || 'unknown');
+  const active = state === 'printing' || state === 'paused';
+  const done = state === 'finished';
+  const jobState = st('job');
+  const jobAttr = jobState ? jobState.attributes : {};
+  const remaining = active ? c.secs('remaining') : null;
+  const endsState = st('ends');
+  const thumbState = ids.thumbnail && hass.states[ids.thumbnail];
+  const dev = (hass.devices || {})[first.device_id] || {};
+  const errS = st('error');
+  const loaded = c.str('loaded_slot');
+  const spools = [1, 2, 3, 4].map((n) => {
+    const s = st('slot' + n);
+    return s ? { n, mat: s.state, color: s.attributes.color_hex, loaded: s.attributes.spool_loaded !== false, active: String(n) === String(loaded) } : null;
+  }).filter(Boolean);
+  const activeSpool = spools.find((s) => s.active);
+  const fw = ids.firmware && hass.states[ids.firmware];
+  const hist = ids.history && hass.states[ids.history];
+  const filament = st('filament');
+  return {
+    A, ids, c, online, state, active, done, look: STATUS[state] || STATUS.idle, device_id: first.device_id, platform: first.platform,
+    name: name || dev.name_by_user || dev.name || 'Printer',
+    progress: active ? Math.max(0, Math.min(100, c.num('progress') ?? 0)) : done ? 100 : 0,
+    job: jobState ? cleanJob(jobAttr.file_name || jobState.state) : '',
+    jobAttr, remaining,
+    ends: active ? (endsState && !isNaN(Date.parse(endsState.state)) ? new Date(endsState.state)
+      : remaining != null ? new Date(Date.now() + remaining * 1000) : null) : null,
+    // the image entity's state is a timestamp; Anycubic keeps it "unknown" but still serves the picture
+    thumb: (active || done) && thumbState && thumbState.state !== 'unavailable' && thumbState.attributes.entity_picture ? thumbState.attributes.entity_picture : null,
+    lightOn: ids.light && (hass.states[ids.light] || {}).state === 'on',
+    err: errS && !['0', 'none', ''].includes(String(errS.state).toLowerCase()) ? errS.state : null,
+    spools, tint: (active || done) && activeSpool && isHex(activeSpool.color) ? activeSpool.color : null,
+    layer: c.num('layer'), layers: c.num('layers'),
+    filamentTxt: filament ? fmtLength(parseFloat(filament.state), filament.attributes.unit_of_measurement) : null,
+    update: fw && fw.state === 'on' ? fw.attributes.latest_version : null,
+    history: hist && Array.isArray(hist.attributes.history) ? hist.attributes.history : null,
+  };
+}
+
+/* One key per printer that changes when anything the cards show changes. */
+function snapKey(hass, ids) {
+  return JSON.stringify(Object.values(ids || {}).map((id) => { const s = hass.states[id]; return s && [s.state, s.last_updated]; }));
+}
+
+function moreInfo(el, entityId) {
+  if (entityId) el.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
+}
 
 class CrealityPrintCard extends HTMLElement {
   setConfig(config) {
@@ -95,10 +213,8 @@ class CrealityPrintCard extends HTMLElement {
   static getConfigElement() { return document.createElement('creality-print-card-editor'); }
 
   static getStubConfig(hass) {
-    const all = Object.values(hass.entities || {});
-    const e = all.find((x) => x.platform === 'creality_cloud' && x.translation_key === 'status')
-      || all.find((x) => x.platform === 'anycubic_cloud' && x.translation_key === 'job_progress');
-    return { entity: e ? e.entity_id : 'sensor.k1_max_status' };
+    const p = allPrinters(hass)[0];
+    return { entity: p ? p.entity : 'sensor.k1_max_status' };
   }
 
   getCardSize() { return 7; }
@@ -107,97 +223,36 @@ class CrealityPrintCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const ids = this._entities();
-    // only redraw when something the card shows actually changed
-    const key = this._view + JSON.stringify(Object.values(ids).map((id) => { const s = hass.states[id]; return s && [s.state, s.last_updated]; }));
+    const s = snapshot(hass, this._config.entity, this._config.name);
+    const key = this._view + (s ? snapKey(hass, s.ids) : 'none');
     if (key === this._key) return;
     this._key = key;
-    this._render(ids);
+    this._snap = s;
+    this._render(s);
+    if (this._dialog) this._dialog.update(hass, s);
   }
 
-  _t(k) {
-    const lang = (this._hass && this._hass.locale && this._hass.locale.language || 'en').split('-')[0];
-    return (TEXT[lang] || TEXT.en)[k] ?? TEXT.en[k] ?? k;
-  }
+  _t(k) { return tr(this._hass, k); }
 
-  _entities() {
-    const all = this._hass.entities || {};
-    const first = all[this._config.entity];
-    this._adapter = first && ADAPTERS[first.platform];
-    if (!first || !first.device_id || !this._adapter) return {};
-    const wanted = Object.fromEntries(Object.entries(this._adapter.roles).map(([role, tk]) => [tk, role]));
-    const ids = {};
-    for (const e of Object.values(all)) {
-      if (e.device_id === first.device_id && e.platform === first.platform && wanted[e.translation_key]) ids[wanted[e.translation_key]] = e.entity_id;
-    }
-    return ids;
-  }
-
-  _render(ids) {
+  _render(s) {
     if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
     const root = this.shadowRoot;
-    const A = this._adapter;
-    if (!A || !Object.keys(ids).length) { root.innerHTML = `<ha-card><div class="msg">${esc(this._t('notFound'))}</div></ha-card>${CSS}`; return; }
+    if (!s) { root.innerHTML = `<ha-card><div class="msg">${esc(this._t('notFound'))}</div></ha-card>${CSS}`; return; }
+    const hass = this._hass, cfg = this._config, show = (k) => cfg[k] !== false;
+    const { A, ids, c, active, done, state, online } = s;
 
-    const hass = this._hass;
-    const st = (r) => { const s = ids[r] && hass.states[ids[r]]; return s && !['unavailable', 'unknown'].includes(s.state) ? s : null; };
-    const c = {
-      str: (r) => (st(r) ? st(r).state : null),
-      num: (r) => { const s = st(r); const n = s ? parseFloat(s.state) : NaN; return isNaN(n) ? null : n; },
-      on: (r) => (ids[r] && hass.states[ids[r]] || {}).state === 'on',
-      secs: (r) => { const s = st(r); const n = s ? parseFloat(s.state) : NaN; return isNaN(n) ? null : n * (SECONDS[s.attributes.unit_of_measurement] || 1); },
-    };
-
-    const online = !ids.online || c.on('online');
-    const state = !online ? 'offline' : (A.state(c) || 'unknown');
-    const look = STATUS[state] || STATUS.idle;
-    const active = state === 'printing' || state === 'paused';
-    const done = state === 'finished';
-    const progress = active ? Math.max(0, Math.min(100, c.num('progress') ?? 0)) : done ? 100 : 0;
-    const jobState = st('job');
-    const jobAttr = jobState ? jobState.attributes : {};
-    const jobName = jobState ? String(jobAttr.file_name || jobState.state).split('/').pop().replace(/\.gcode$/i, '')
-      .replace(/(\.stl)?_[A-Z][A-Z0-9+-]*(_0\.\d+)?_(\d+d)?(\d+h)?(\d+m)?(\d+s)?$/, '').replace(/^\d{4}-\d{4}-/, '') : '';
-    const remaining = active ? c.secs('remaining') : null;
-    const endsState = st('ends');
-    const ends = active ? (endsState && !isNaN(Date.parse(endsState.state)) ? new Date(endsState.state)
-      : remaining != null ? new Date(Date.now() + remaining * 1000) : null) : null;
-    // the image entity's state is a timestamp; Anycubic keeps it "unknown" but still serves the picture
-    const thumbState = ids.thumbnail && hass.states[ids.thumbnail];
-    const thumb = (active || done) && thumbState && thumbState.state !== 'unavailable' && thumbState.attributes.entity_picture
-      ? thumbState.attributes.entity_picture : null;
-    const lightOn = ids.light && (hass.states[ids.light] || {}).state === 'on';
-    const dev = (hass.devices || {})[(hass.entities[this._config.entity] || {}).device_id] || {};
-    const cfg = this._config, show = (k) => cfg[k] !== false;
-    const deviceName = this._config.name || dev.name_by_user || dev.name || 'Printer';
-    const errS = st('error');
-    const err = errS && !['0', 'none', ''].includes(String(errS.state).toLowerCase()) ? errS.state : null;
-
-    // ACE / multi-material spools (Anycubic)
-    const loaded = c.str('loaded_slot');
-    const spools = [1, 2, 3, 4].map((n) => {
-      const s = st('slot' + n);
-      return s ? { n, mat: s.state, color: s.attributes.color_hex, loaded: s.attributes.spool_loaded !== false, active: String(n) === String(loaded) } : null;
-    }).filter(Boolean);
-    const activeSpool = spools.find((s) => s.active);
-    const tint = (active || done) && activeSpool && isHex(activeSpool.color) ? activeSpool.color : null;
-
-    // slicer info
-    const types = [...new Set(Array.isArray(jobAttr.filament_types) ? jobAttr.filament_types : [])];
-    const layer = c.num('layer'), layers = c.num('layers');
-    const filament = st('filament');
-    const filamentTxt = filament ? fmtLength(parseFloat(filament.state), filament.attributes.unit_of_measurement) : null;
+    const types = [...new Set(Array.isArray(s.jobAttr.filament_types) ? s.jobAttr.filament_types : [])];
     const slicer = [
       types.length ? [this._t('material'), types.join(' + ')] : null,
-      jobAttr.layer_height ? [this._t('layerHeight'), `${jobAttr.layer_height} mm`] : null,
-      layers ? [this._t('layers'), `${layer != null ? Math.round(layer) : '–'} / ${Math.round(layers)}`] : null,
-      filamentTxt ? [this._t('filament'), filamentTxt] : null,
-      jobAttr.slicer_estimate ? [this._t('estimate'), dur(jobAttr.slicer_estimate)] : null,
-      jobAttr.slicer ? [this._t('slicer'), String(jobAttr.slicer)] : null,
+      s.jobAttr.layer_height ? [this._t('layerHeight'), `${s.jobAttr.layer_height} mm`] : null,
+      s.layers ? [this._t('layers'), `${s.layer != null ? Math.round(s.layer) : '–'} / ${Math.round(s.layers)}`] : null,
+      s.filamentTxt ? [this._t('filament'), s.filamentTxt] : null,
+      s.jobAttr.slicer_estimate ? [this._t('estimate'), dur(s.jobAttr.slicer_estimate)] : null,
+      s.jobAttr.slicer ? [this._t('slicer'), String(s.jobAttr.slicer)] : null,
     ].filter(Boolean);
 
     const lang = hass.locale ? hass.locale.language : undefined;
-    const endTime = ends ? ends.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) : '–';
+    const endTime = s.ends ? s.ends.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) : '–';
     const temp = (k, tk, icon, label) => {
       const now = c.num(k), target = tk ? c.num(tk) : null;
       if (now == null && !ids[k]) return '';
@@ -213,31 +268,38 @@ class CrealityPrintCard extends HTMLElement {
     const ring = `<div class="ring" data-more="${esc(ids.progress || ids.status)}">
         <svg viewBox="0 0 120 120" aria-hidden="true">
           <circle class="track" cx="60" cy="60" r="52"></circle>
-          <circle class="bar" cx="60" cy="60" r="52" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - progress / 100)}"></circle>
+          <circle class="bar" cx="60" cy="60" r="52" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - s.progress / 100)}"></circle>
         </svg>
-        ${thumb ? `<img src="${esc(thumb)}" alt="">` : `<ha-icon class="ph" icon="mdi:printer-3d"></ha-icon>`}
-        ${active ? `<div class="pct">${Math.round(progress)}<small>%</small></div>` : ''}
+        ${s.thumb ? `<img src="${esc(s.thumb)}" alt="">` : `<ha-icon class="ph" icon="mdi:printer-3d"></ha-icon>`}
+        ${active ? `<div class="pct">${Math.round(s.progress)}<small>%</small></div>` : ''}
       </div>`;
+    const o = { progress: s.progress, thumb: s.thumb, tint: s.tint, active, printing: state === 'printing', lightOn: s.lightOn, spools: s.spools };
     const drawing = `<div class="draw" data-more="${esc(ids.progress || ids.status)}">
-        ${A.drawing === 'kobra' ? kobraSvg(this._uid, { progress, thumb, tint, active, printing: state === 'printing', lightOn, spools })
-          : k1Svg(this._uid, { progress, thumb, tint, active, printing: state === 'printing', lightOn })}
-        ${active ? `<div class="pct float">${Math.round(progress)}<small>%</small></div>` : ''}
+        ${A.drawing === 'kobra' ? kobraSvg(this._uid, o) : k1Svg(this._uid, o)}
+        ${active ? `<div class="pct float">${Math.round(s.progress)}<small>%</small></div>` : ''}
       </div>`;
     const times = active ? `<div class="stats">
-        <div class="stat"><span class="label">${esc(this._t('remaining'))}</span><span class="big">${dur(remaining)}</span></div>
+        <div class="stat"><span class="label">${esc(this._t('remaining'))}</span><span class="big">${dur(s.remaining)}</span></div>
         <div class="stat"><span class="label">${esc(this._t('ends'))}</span><span class="big">${esc(endTime)}</span></div>
       </div>` : '';
     const viewBtns = !show('show_view_switch') ? '' : `<div class="views" role="group">
         <button class="${this._view === 'printer' ? 'sel' : ''}" data-view="printer" title="${esc(this._t('viewPrinter'))}"><ha-icon icon="mdi:printer-3d"></ha-icon></button>
         <button class="${this._view === 'preview' ? 'sel' : ''}" data-view="preview" title="${esc(this._t('viewPreview'))}"><ha-icon icon="mdi:image-outline"></ha-icon></button>
       </div>`;
+    const historyBtn = show('show_history') && ids.history
+      ? `<button class="icon" data-history title="${esc(this._t('history'))}"><ha-icon icon="mdi:history"></ha-icon></button>` : '';
+    const updateChip = s.update ? `<button class="icon upd" data-more="${esc(ids.firmware)}" title="${esc(this._t('updateTitle').replace('%s', s.update))}"><ha-icon icon="mdi:package-up"></ha-icon></button>` : '';
 
-    root.innerHTML = `<ha-card style="--cpc-status:${look.color}">
+    root.innerHTML = `<ha-card style="--cpc-status:${s.look.color}">
       <div class="head">
-        <ha-icon class="logo" icon="${look.icon}"></ha-icon>
-        <div class="title"><div class="name">${esc(deviceName)}</div><div class="sub">${esc(jobName && (active || done) ? jobName : this._t('noJob'))}</div></div>
-        <span class="chip" data-more="${esc(ids.status || ids.busy || ids.online)}"><span class="dot"></span>${esc(this._t(state))}</span>
-        ${ids.light && show('show_controls') ? `<button class="icon ${lightOn ? 'on' : ''}" data-light title="${esc(this._t('light'))}" ${online ? '' : 'disabled'}><ha-icon icon="${lightOn ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline'}"></ha-icon></button>` : ''}
+        <ha-icon class="logo" icon="${s.look.icon}"></ha-icon>
+        <div class="title"><div class="name">${esc(s.name)}</div><div class="sub">${esc(s.job && (active || done) ? s.job : this._t('noJob'))}</div></div>
+        <div class="tools">
+          ${updateChip}
+          <span class="chip" data-more="${esc(ids.status || ids.busy || ids.online)}"><span class="dot"></span>${esc(this._t(state))}</span>
+          ${historyBtn}
+          ${ids.light && show('show_controls') ? `<button class="icon ${s.lightOn ? 'on' : ''}" data-light title="${esc(this._t('light'))}" ${online ? '' : 'disabled'}><ha-icon icon="${s.lightOn ? 'mdi:lightbulb-on' : 'mdi:lightbulb-outline'}"></ha-icon></button>` : ''}
+        </div>
       </div>
       ${this._view === 'printer'
         ? `<div class="stage">${drawing}${viewBtns}</div>${times ? `<div class="under">${times}</div>` : ''}`
@@ -248,14 +310,14 @@ class CrealityPrintCard extends HTMLElement {
         ${temp('bed', 'bed_target', 'mdi:radiator', this._t('bed'))}
         ${temp('extra', null, A.extraLabel === 'ace' ? 'mdi:printer-3d-nozzle-outline' : 'mdi:thermometer', this._t(A.extraLabel))}
       </div>`}
-      ${err ? `<div class="err"><ha-icon icon="mdi:alert"></ha-icon>${esc(this._t('error'))}: ${esc(err)}</div>` : ''}
+      ${s.err ? `<div class="err"><ha-icon icon="mdi:alert"></ha-icon>${esc(this._t('error'))}: ${esc(s.err)}</div>` : ''}
       ${active && online && show('show_controls') ? `<div class="actions">
         ${state === 'printing' ? btn('pause', 'mdi:pause') : btn('resume', 'mdi:play')}
         ${btn('cancel', 'mdi:stop', 'danger')}
       </div>` : ''}
     </ha-card>${CSS}`;
 
-    root.querySelectorAll('[data-more]').forEach((el) => el.addEventListener('click', () => this._more(el.dataset.more)));
+    root.querySelectorAll('[data-more]').forEach((el) => el.addEventListener('click', () => moreInfo(this, el.dataset.more)));
     root.querySelectorAll('[data-view]').forEach((el) => el.addEventListener('click', (ev) => {
       ev.stopPropagation();
       this._view = el.dataset.view;
@@ -264,32 +326,28 @@ class CrealityPrintCard extends HTMLElement {
     }));
     root.querySelectorAll('[data-press]').forEach((el) => el.addEventListener('click', () => {
       const k = el.dataset.press;
-      if (k === 'cancel' && !confirm(this._t('confirm').replace('%s', deviceName))) return;
+      if (k === 'cancel' && !confirm(this._t('confirm').replace('%s', s.name))) return;
       el.disabled = true;
       hass.callService('button', 'press', { entity_id: ids[k] }).catch(() => { el.disabled = false; });
     }));
     const l = root.querySelector('[data-light]');
     if (l) l.addEventListener('click', () => hass.callService('light', 'toggle', { entity_id: ids.light }));
+    const h = root.querySelector('[data-history]');
+    if (h) h.addEventListener('click', () => this._openHistory());
   }
 
-  _more(entityId) {
-    if (!entityId) return;
-    this.dispatchEvent(new CustomEvent('hass-more-info', { detail: { entityId }, bubbles: true, composed: true }));
+  _openHistory() {
+    if (!this._dialog) {
+      this._dialog = document.createElement('creality-print-dialog');
+      this._dialog.addEventListener('closed', () => { this._dialog.remove(); this._dialog = null; });
+    }
+    document.body.append(this._dialog);
+    this._dialog.update(this._hass, this._snap);
   }
+
+  disconnectedCallback() { if (this._dialog) { this._dialog.remove(); this._dialog = null; } }
 }
 
-function dur(sec) {
-  if (sec == null) return '–';
-  const m = Math.round(sec / 60);
-  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : `${m}m`;
-}
-
-function fmtLength(v, unit) {
-  if (isNaN(v)) return null;
-  if (unit === 'g') return `${Math.round(v)} g`;
-  const mm = unit === 'm' ? v * 1000 : unit === 'cm' ? v * 10 : v;
-  return mm >= 1000 ? `${(mm / 1000).toFixed(1)} m` : `${Math.round(mm)} mm`;
-}
 
 /* The print inside the drawing: the preview image, revealed from the bottom up to the progress, the rest as a ghost.
    With a filament colour the image is tinted in that colour. */
@@ -407,6 +465,9 @@ const CSS = `<style>
   .sub { color: var(--secondary-text-color); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .8rem; font-weight: 500;
     background: color-mix(in srgb, var(--cpc-status) 16%, transparent); color: var(--primary-text-color); cursor: pointer; white-space: nowrap; }
+  .tools { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+  .tools .chip { margin-right: 2px; }
+  .icon.upd { color: var(--primary-color); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cpc-status); }
   button { font: inherit; cursor: pointer; }
   .icon { border: none; background: none; color: var(--secondary-text-color); border-radius: 50%; padding: 6px; display: flex; }
@@ -474,16 +535,129 @@ const CSS = `<style>
   @media (max-width: 420px) { .body { gap: 14px; } .ring { width: 112px; height: 112px; } .ring img { inset: 14px; width: 84px; height: 84px; } .big { font-size: 1.25rem; } }
 </style>`;
 
-/* Visual editor, built on Home Assistant's own ha-form. */
+
+/* Popup with the print history: timelapse playback and "print again". Lives on document.body so it covers the
+   whole screen, whatever dashboard layout the card is in. */
+class CrealityPrintDialog extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._video = null;
+    this._onKey = (ev) => { if (ev.key === 'Escape') this._close(); };
+  }
+
+  connectedCallback() { document.addEventListener('keydown', this._onKey); }
+
+  disconnectedCallback() { document.removeEventListener('keydown', this._onKey); }
+
+  update(hass, snap) {
+    this._hass = hass;
+    this._snap = snap;
+    if (!this._video) this._render();   // don't rebuild while a video plays
+  }
+
+  _t(k) { return tr(this._hass, k); }
+
+  _close() { this.dispatchEvent(new CustomEvent('closed')); }
+
+  _render() {
+    const s = this._snap, hass = this._hass;
+    if (!s) return;
+    const lang = hass.locale ? hass.locale.language : undefined;
+    const items = s.history || [];
+    const canPrint = s.online && !s.active;
+    const row = (r, i) => {
+      const look = STATUS[r.state] || STATUS.idle;
+      const when = r.start ? new Date(r.start * 1000).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      const reprintTitle = !r.on_printer ? this._t('reprintNotOnPrinter') : !canPrint ? this._t('reprintBusy') : this._t('reprint');
+      return `<li>
+        <div class="thumb ${r.timelapse ? 'play' : ''}" ${r.timelapse ? `data-play="${i}" title="${esc(this._t('timelapse'))}"` : ''}>
+          ${r.thumbnail || r.timelapse_cover ? `<img src="${esc(r.timelapse_cover || r.thumbnail)}" alt="" loading="lazy">` : '<ha-icon icon="mdi:cube-outline"></ha-icon>'}
+          ${r.timelapse ? '<span class="playicon"><ha-icon icon="mdi:play"></ha-icon></span>' : ''}
+        </div>
+        <div class="info">
+          <div class="nm">${esc(cleanJob(r.name))}</div>
+          <div class="meta"><span class="st" style="--c:${look.color}">${esc(this._t(r.state))}</span>${esc(when)}${r.duration ? ' · ' + dur(r.duration) : ''}</div>
+        </div>
+        <div class="btns">
+          ${r.timelapse ? `<button data-play="${i}" title="${esc(this._t('timelapse'))}"><ha-icon icon="mdi:play-circle-outline"></ha-icon></button>` : ''}
+          ${s.platform === 'creality_cloud' ? `<button data-reprint="${i}" title="${esc(reprintTitle)}" ${r.on_printer && canPrint ? '' : 'disabled'}><ha-icon icon="mdi:restart"></ha-icon></button>` : ''}
+        </div>
+      </li>`;
+    };
+    this.shadowRoot.innerHTML = `<div class="backdrop" data-close></div>
+      <div class="dlg" role="dialog" aria-modal="true" aria-label="${esc(this._t('history'))}">
+        <header><div><h2>${esc(this._t('history'))}</h2><div class="sub">${esc(s.name)}</div></div>
+          <button class="x" data-close title="${esc(this._t('close'))}"><ha-icon icon="mdi:close"></ha-icon></button></header>
+        ${this._video != null ? '' : items.length ? `<ul>${items.map(row).join('')}</ul>` : `<p class="empty">${esc(this._t('noHistory'))}</p>`}
+      </div>${DIALOG_CSS}`;
+    this.shadowRoot.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', () => this._close()));
+    this.shadowRoot.querySelectorAll('[data-play]').forEach((el) => el.addEventListener('click', () => this._play(items[+el.dataset.play])));
+    this.shadowRoot.querySelectorAll('[data-reprint]').forEach((el) => el.addEventListener('click', async () => {
+      const r = items[+el.dataset.reprint];
+      if (!confirm(this._t('reprintConfirm').replace('%s', cleanJob(r.name)).replace('%s', s.name))) return;
+      el.disabled = true;
+      try {
+        await hass.callService('creality_cloud', 'reprint', { device_id: s.device_id, file_name: r.name.split('/').pop() });
+        this._close();
+      } catch (e) { el.disabled = false; alert(e.message || e); }
+    }));
+  }
+
+  _play(r) {
+    this._video = r;
+    this._render();
+    const dlg = this.shadowRoot.querySelector('.dlg');
+    const box = document.createElement('div');
+    box.className = 'player';
+    box.innerHTML = `<button class="back" title="${esc(this._t('history'))}"><ha-icon icon="mdi:arrow-left"></ha-icon>${esc(cleanJob(r.name))}</button>`;
+    const v = document.createElement('video');
+    v.src = r.timelapse;   // only Creality CDN URLs reach this point (checked by the integration)
+    v.controls = true; v.autoplay = true; v.playsInline = true; v.loop = true;
+    if (r.timelapse_cover || r.thumbnail) v.poster = r.timelapse_cover || r.thumbnail;
+    box.append(v);
+    dlg.append(box);
+    box.querySelector('.back').addEventListener('click', () => { this._video = null; this._render(); });
+  }
+}
+
+const DIALOG_CSS = `<style>
+  :host { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; font-family: var(--paper-font-body1_-_font-family, inherit); }
+  .backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+  .dlg { position: relative; width: min(560px, calc(100vw - 24px)); max-height: calc(100vh - 48px); overflow: auto; border-radius: 20px;
+    background: var(--card-background-color, #fff); color: var(--primary-text-color); box-shadow: 0 12px 40px rgba(0,0,0,.35); padding: 16px 16px 20px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  h2 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+  .sub { color: var(--secondary-text-color); font-size: .85rem; }
+  button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+  .x { border-radius: 50%; padding: 8px; display: flex; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  li { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 12px; background: var(--secondary-background-color, rgba(127,127,127,.08)); }
+  .thumb { position: relative; width: 56px; height: 56px; flex: none; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+    background: var(--card-background-color, #fff); color: var(--secondary-text-color); }
+  .thumb img { width: 100%; height: 100%; object-fit: contain; }
+  .thumb.play { cursor: pointer; }
+  .playicon { position: absolute; inset: auto 4px 4px auto; background: rgba(0,0,0,.6); color: #fff; border-radius: 50%; display: flex; padding: 2px; --mdc-icon-size: 16px; }
+  .info { flex: 1; min-width: 0; }
+  .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--secondary-text-color); font-size: .8rem; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .st { color: var(--c); font-weight: 600; }
+  .btns { display: flex; gap: 2px; }
+  .btns button { border-radius: 50%; padding: 8px; display: flex; color: var(--primary-color); }
+  .btns button:disabled { color: var(--disabled-text-color, #999); cursor: default; }
+  .empty { color: var(--secondary-text-color); }
+  .player { display: grid; gap: 10px; }
+  .back { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; justify-self: start; padding: 4px 0; }
+  video { width: 100%; max-height: 70vh; border-radius: 12px; background: #000; }
+</style>`;
+
+/* Visual editor for the single card, built on Home Assistant's own ha-form. */
 class CrealityPrintCardEditor extends HTMLElement {
   setConfig(config) { this._config = { ...config }; this._render(); }
 
   set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; else this._render(); }
 
-  _t(k) {
-    const lang = (this._hass && this._hass.locale && this._hass.locale.language || 'en').split('-')[0];
-    return (TEXT[lang] || TEXT.en)[k] ?? TEXT.en[k] ?? k;
-  }
+  _t(k) { return tr(this._hass, k); }
 
   _render() {
     if (!this._hass || !this._config) return;
@@ -492,7 +666,7 @@ class CrealityPrintCardEditor extends HTMLElement {
       this._form.computeLabel = (s) => this._t('e_' + s.name);
       this._form.addEventListener('value-changed', (ev) => {
         const cfg = { ...ev.detail.value };
-        for (const k of ['show_slicer', 'show_temperatures', 'show_controls', 'show_view_switch']) if (cfg[k] === true) delete cfg[k];   // defaults stay out of the YAML
+        for (const k of ['show_slicer', 'show_temperatures', 'show_controls', 'show_view_switch', 'show_history']) if (cfg[k] === true) delete cfg[k];   // defaults stay out of the YAML
         if (cfg.view === 'printer') delete cfg.view;
         if (!cfg.name) delete cfg.name;
         this._config = cfg;
@@ -510,21 +684,147 @@ class CrealityPrintCardEditor extends HTMLElement {
       { name: 'show_temperatures', selector: { boolean: {} } },
       { name: 'show_controls', selector: { boolean: {} } },
       { name: 'show_view_switch', selector: { boolean: {} } },
+      { name: 'show_history', selector: { boolean: {} } },
     ];
-    const c = this._config;
-    this._form.data = { view: 'printer', show_slicer: true, show_temperatures: true, show_controls: true, show_view_switch: true, ...c };
+    this._form.data = { view: 'printer', show_slicer: true, show_temperatures: true, show_controls: true, show_view_switch: true,
+      show_history: true, ...this._config };
   }
 }
 
-if (!customElements.get('creality-print-card-editor')) customElements.define('creality-print-card-editor', CrealityPrintCardEditor);
+/* Printer group: every printer in one compact list. */
+class CrealityPrintGroupCard extends HTMLElement {
+  setConfig(config) { this._config = { ...(config || {}) }; this._key = null; }
 
+  static getConfigElement() { return document.createElement('creality-print-group-card-editor'); }
+
+  static getStubConfig() { return {}; }
+
+  getCardSize() { return 1 + (this._rows || 2) * 2; }
+
+  getGridOptions() { return { columns: 12, min_columns: 6, rows: 'auto' }; }
+
+  set hass(hass) {
+    this._hass = hass;
+    const list = (this._config.entities && this._config.entities.length ? this._config.entities.map((e) => ({ entity: e })) : allPrinters(hass));
+    const snaps = list.map((p) => snapshot(hass, p.entity)).filter(Boolean)
+      .filter((s) => this._config.show_idle !== false || s.active || s.done);
+    const key = JSON.stringify(snaps.map((s) => snapKey(hass, s.ids)));
+    if (key === this._key) return;
+    this._key = key;
+    this._rows = snaps.length;
+    this._render(snaps);
+  }
+
+  _t(k) { return tr(this._hass, k); }
+
+  _render(snaps) {
+    if (!this.shadowRoot) this.attachShadow({ mode: 'open' });
+    const hass = this._hass;
+    const lang = hass.locale ? hass.locale.language : undefined;
+    const title = this._config.title ?? this._t('groupTitle');
+    const active = snaps.filter((s) => s.active).length;
+    const row = (s, i) => {
+      const nozzle = s.c.num('nozzle'), bed = s.c.num('bed');
+      const end = s.ends ? s.ends.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) : null;
+      return `<div class="row" data-i="${i}" style="--cpc-status:${s.look.color}">
+        <div class="pic">${s.thumb ? `<img src="${esc(s.thumb)}" alt="">` : `<ha-icon icon="${s.look.icon}"></ha-icon>`}</div>
+        <div class="main">
+          <div class="top"><span class="nm">${esc(s.name)}</span><span class="chip"><span class="dot"></span>${esc(this._t(s.state))}</span></div>
+          <div class="job">${esc(s.active || s.done ? s.job : this._t('noJob'))}</div>
+          ${s.active ? `<div class="bar"><i style="width:${s.progress}%"></i></div>
+            <div class="meta"><b>${Math.round(s.progress)}%</b><span>${esc(this._t('remaining'))} ${dur(s.remaining)}</span>${end ? `<span>${esc(this._t('ends'))} ${esc(end)}</span>` : ''}</div>`
+          : `<div class="meta">${nozzle != null ? `<span><ha-icon icon="mdi:printer-3d-nozzle-heat"></ha-icon>${Math.round(nozzle)}°</span>` : ''}${bed != null ? `<span><ha-icon icon="mdi:radiator"></ha-icon>${Math.round(bed)}°</span>` : ''}${s.update ? `<span class="upd"><ha-icon icon="mdi:package-up"></ha-icon>${esc(this._t('update'))}</span>` : ''}</div>`}
+        </div>
+      </div>`;
+    };
+    this.shadowRoot.innerHTML = `<ha-card>
+      ${title ? `<div class="head"><span>${esc(title)}</span>${active ? `<span class="count">${active} ${esc(this._t('printing').toLowerCase())}</span>` : ''}</div>` : ''}
+      ${snaps.length ? snaps.map(row).join('') : `<div class="empty">${esc(this._t('noPrinters'))}</div>`}
+    </ha-card>${GROUP_CSS}`;
+    this.shadowRoot.querySelectorAll('[data-i]').forEach((el) => el.addEventListener('click', () => {
+      const s = snaps[+el.dataset.i];
+      moreInfo(this, s.ids.status || s.ids.progress || s.ids.busy);
+    }));
+  }
+}
+
+const GROUP_CSS = `<style>
+  ha-card { padding: 12px 16px 8px; }
+  .head { display: flex; align-items: baseline; justify-content: space-between; font-size: 1.1rem; font-weight: 600; padding: 4px 0 8px; }
+  .count { font-size: .8rem; font-weight: 500; color: var(--primary-color); }
+  .row { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--divider-color, rgba(127,127,127,.2)); cursor: pointer; }
+  .row:first-of-type { border-top: none; }
+  .head + .row { border-top: none; }
+  .pic { width: 52px; height: 52px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    background: color-mix(in srgb, var(--cpc-status) 14%, transparent); color: var(--cpc-status); --mdc-icon-size: 26px; }
+  .pic img { width: 100%; height: 100%; object-fit: contain; }
+  .main { flex: 1; min-width: 0; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 999px; font-size: .75rem; font-weight: 500; flex: none;
+    background: color-mix(in srgb, var(--cpc-status) 16%, transparent); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cpc-status); }
+  .job { color: var(--secondary-text-color); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar { height: 6px; border-radius: 999px; background: var(--divider-color, rgba(127,127,127,.25)); overflow: hidden; margin: 6px 0 4px; }
+  .bar i { display: block; height: 100%; background: var(--cpc-status); border-radius: 999px; transition: width .8s ease; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .8rem; color: var(--secondary-text-color); align-items: center; }
+  .meta b { color: var(--primary-text-color); }
+  .meta span { display: inline-flex; align-items: center; gap: 3px; }
+  .meta ha-icon { --mdc-icon-size: 15px; }
+  .upd { color: var(--primary-color); }
+  .empty { color: var(--secondary-text-color); padding: 8px 0 12px; }
+</style>`;
+
+class CrealityPrintGroupCardEditor extends HTMLElement {
+  setConfig(config) { this._config = { ...config }; this._render(); }
+
+  set hass(hass) { this._hass = hass; if (this._form) this._form.hass = hass; else this._render(); }
+
+  _t(k) { return tr(this._hass, k); }
+
+  _render() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      this._form = document.createElement('ha-form');
+      this._form.computeLabel = (s) => this._t('e_' + s.name);
+      this._form.addEventListener('value-changed', (ev) => {
+        const cfg = { ...ev.detail.value };
+        if (cfg.show_idle === true) delete cfg.show_idle;
+        if (!cfg.entities || !cfg.entities.length) delete cfg.entities;
+        this._config = cfg;
+        this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: cfg }, bubbles: true, composed: true }));
+      });
+      this.append(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = [
+      { name: 'title', selector: { text: {} } },
+      { name: 'entities', selector: { entity: { multiple: true, filter: [
+        { integration: 'creality_cloud', domain: 'sensor' }, { integration: 'anycubic_cloud', domain: 'sensor' }] } } },
+      { name: 'show_idle', selector: { boolean: {} } },
+    ];
+    this._form.data = { show_idle: true, ...this._config };
+  }
+}
+
+const define = (name, cls) => { if (!customElements.get(name)) customElements.define(name, cls); };
+define('creality-print-dialog', CrealityPrintDialog);
+define('creality-print-card-editor', CrealityPrintCardEditor);
+define('creality-print-group-card-editor', CrealityPrintGroupCardEditor);
 if (!customElements.get('creality-print-card')) {
-  customElements.define('creality-print-card', CrealityPrintCard);
+  define('creality-print-card', CrealityPrintCard);
+  define('creality-print-group-card', CrealityPrintGroupCard);
   window.customCards = window.customCards || [];
   window.customCards.push({
     type: 'creality-print-card',
     name: 'Creality Print Card',
-    description: 'Printer drawing with live progress, slicer info, temperatures and controls. Works with Creality Cloud and Anycubic Cloud.',
+    description: 'Printer drawing with live progress, slicer info, temperatures, history with timelapse, and controls. Works with Creality Cloud and Anycubic Cloud.',
+    preview: true,
+    documentationURL: 'https://github.com/Rein033/ha-creality-cloud',
+  }, {
+    type: 'creality-print-group-card',
+    name: 'Creality Print Group',
+    description: 'All your 3D printers in one compact list: status, progress and finish time.',
     preview: true,
     documentationURL: 'https://github.com/Rein033/ha-creality-cloud',
   });

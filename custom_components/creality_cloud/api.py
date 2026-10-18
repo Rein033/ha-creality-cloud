@@ -1,7 +1,7 @@
-"""Small async client for Creality Cloud (crealitycloud.com).
+"""Small async client for Creality Cloud (crealitycloud.com and crealitycloud.cn).
 
 Creality does not publish an API for this. The endpoints below come from the Creality Cloud website and may change
-without notice. Only the international region (crealitycloud.com) is supported.
+without notice.
 """
 from __future__ import annotations
 
@@ -10,19 +10,29 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 
-ID_HOST = "https://id.creality.com"
-API_HOST = "https://api.crealitycloud.com"
-CLIENT_ID = "f9c302ecc29c59a0a6e921ff39a073ca"
 APP_VER = "7.3.28"
+
+# region -> hosts and the website's client id
+REGIONS: dict[str, dict[str, str]] = {
+    "international": {"id": "https://id.creality.com", "api": "https://api.crealitycloud.com",
+                      "client_id": "f9c302ecc29c59a0a6e921ff39a073ca"},
+    "china": {"id": "https://id.creality.cn", "api": "https://api.crealitycloud.cn",
+              "client_id": "8ea5010984fa52a298f12110af8b05d0"},
+}
 
 LOGIN = "/api/cxy/account/v2/loginV2"
 DEVICES = "/api/rest/print/cluster/devices/getDeviceList"
 RPC = "/api/rest/iotrouter/rpc/twoway/"
+HISTORY = "/api/cxy/v3/print/record/list"
+TIMELAPSES = "/api/cxy/v2/device/timelapsVideoList"
+OTA = "/api/cxy/v2/firmware/otaList"
 
-THUMB_HOSTS = ("pic-cdn.creality.com", "pic2-cdn.creality.com")
+# images and videos are only taken from Creality's own CDNs
+MEDIA_DOMAINS = ("creality.com", "crealitycloud.com", "creality.cn", "crealitycloud.cn")
 
 # Same messages as the printer's local websocket; nothing else can be sent.
 COMMANDS: dict[str, dict[str, int]] = {
@@ -32,12 +42,16 @@ COMMANDS: dict[str, dict[str, int]] = {
     "light_on": {"lightSw": 1},
     "light_off": {"lightSw": 0},
 }
+GCODE_DIR = "/usr/data/printer_data/gcodes/"   # where K1-series printers keep files on their own storage
 
 STATES = {0: "idle", 1: "printing", 2: "finished", 3: "failed", 4: "stopped", 5: "paused"}
+# printState in the print history
+RECORD_STATES = {0: "waiting", 1: "printing", 2: "finished", 3: "failed", 4: "stopped", 5: "paused"}
 
 
 # Creality Print / OrcaSlicer name files like "Model.stl_PLA_8h35m17s.gcode" or "Model_PETG_0.2_1h02m3s.gcode"
 _JOB = re.compile(r"[._](?P<mat>[A-Z][A-Z0-9+-]{1,9})(?:_(?P<lh>0\.\d+))?_(?:(?P<d>\d+)d)?(?:(?P<h>\d+)h)?(?:(?P<m>\d+)m)?(?:(?P<s>\d+)s)?(?:\.gcode)?$")
+_SAFE_FILE = re.compile(r"^[^/\\\x00-\x1f]{1,200}\.gcode$", re.IGNORECASE)
 
 
 def parse_job(name: str | None) -> dict[str, Any]:
@@ -52,6 +66,17 @@ def parse_job(name: str | None) -> dict[str, Any]:
     if m.group("lh"):
         out["layer_height"] = float(m.group("lh"))
     return out
+
+
+def media_url(url: Any) -> str | None:
+    """Only https URLs on Creality's own domains."""
+    if not isinstance(url, str):
+        return None
+    u = urlparse(url)
+    host = (u.hostname or "").lower()
+    if u.scheme == "https" and any(host == d or host.endswith("." + d) for d in MEDIA_DOMAINS):
+        return url
+    return None
 
 
 class CrealityError(Exception):
@@ -78,6 +103,7 @@ class Printer:
     name: str
     model: str
     firmware: str | None
+    hardware: str | None
     serial: str | None
     online: bool
     state: str
@@ -100,22 +126,42 @@ class Printer:
         return self.state in ("printing", "paused")
 
 
+@dataclass
+class PrintRecord:
+    """One entry of the print history."""
+
+    id: str
+    name: str
+    state: str
+    start: int | None
+    end: int | None
+    duration: int | None  # seconds
+    thumbnail: str | None
+    on_printer: bool  # file is on the printer's own storage, so it can be printed again
+    timelapse_id: str | None
+    timelapse: str | None = None  # video URL, filled in from the timelapse list
+    timelapse_cover: str | None = None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {k: getattr(self, k) for k in ("id", "name", "state", "start", "end", "duration", "thumbnail",
+                                              "on_printer", "timelapse", "timelapse_cover")}
+
+
 def parse_device(d: dict[str, Any]) -> Printer:
     """Turn one entry of getDeviceList into a Printer (no network; tested with tests/device.json)."""
     a = {x.get("key"): x.get("value") for x in d.get("iotAttr") or []}
     p = d.get("printInfo") or {}
     state = STATES.get(a.get("state"), "unknown")
     active = state in ("printing", "paused")
-    thumb = p.get("gcodeThumbnail") or None
-    if thumb and not any(thumb.startswith("https://%s/" % h) for h in THUMB_HOSTS):
-        thumb = None
     led = a.get("led_state")
+    hw = re.search(r"printer hw ver:([^;]+)", str(a.get("modelVersion") or ""))
     return Printer(
         id=str(d.get("deviceName") or d.get("id")),
         tb_id=str(d.get("tbId") or ""),
         name=d.get("aliasName") or d.get("deviceName") or "Creality printer",
         model=(d.get("deviceType") or {}).get("name") or d.get("model") or "Creality",
         firmware=d.get("printerVersion"),
+        hardware=hw.group(1).strip() if hw else None,
         serial=d.get("factorySn") or a.get("productionSn"),
         online=d.get("deviceState") == 1 and a.get("connect", d.get("connect")) == 1,
         state=state,
@@ -130,19 +176,75 @@ def parse_device(d: dict[str, Any]) -> Printer:
         chamber=_num(d.get("boxTemp")),
         light=None if led is None else led == 1,
         error=(d.get("deviceErrorCode") or a.get("err") or None),
-        thumbnail=thumb if active else None,
+        thumbnail=media_url(p.get("gcodeThumbnail")) if active else None,
         raw=d,
     )
 
 
-class CrealityCloud:
-    """Login, list printers, send a fixed command. Re-logs in when the token expires."""
+def parse_record(r: dict[str, Any]) -> PrintRecord:
+    start, end = r.get("printStartTime") or None, r.get("printEndTime") or None
+    job = r.get("printJobTime") or None
+    return PrintRecord(
+        id=str(r.get("id") or ""),
+        name=str(r.get("name") or ""),
+        state=RECORD_STATES.get(r.get("printState"), "unknown"),
+        start=start,
+        end=end,
+        duration=job or (end - start if start and end and end > start else None),
+        thumbnail=media_url(r.get("thumbnailUrl")),
+        on_printer=bool(r.get("tfCard")),
+        timelapse_id=str(r.get("timelapseId") or r.get("videoRecordId") or "") or None,
+    )
 
-    def __init__(self, session: aiohttp.ClientSession, email: str, password: str, token: dict | None = None) -> None:
+
+def _first(d: dict, *keys: str) -> Any:
+    for k in keys:
+        if d.get(k):
+            return d[k]
+    return None
+
+
+def attach_timelapses(records: list[PrintRecord], videos: list[dict[str, Any]]) -> None:
+    """Link timelapse videos to history entries by timelapse id, record id or print id."""
+    by_key: dict[str, dict] = {}
+    for v in videos:
+        for k in ("id", "timelapseId", "videoRecordId", "printId", "recordId"):
+            if v.get(k):
+                by_key[str(v[k])] = v
+    for r in records:
+        v = by_key.get(r.timelapse_id or "") or by_key.get(r.id)
+        if v:
+            r.timelapse = media_url(_first(v, "videoUrl", "url", "playUrl", "fileUrl", "video"))
+            r.timelapse_cover = media_url(_first(v, "coverUrl", "cover", "thumbnail", "coverImg"))
+
+
+def latest_firmware(ota: list[dict[str, Any]], hardware: str | None) -> str | None:
+    """Highest otaVer released for this hardware version."""
+    if not hardware:
+        return None
+    def key(v: str) -> tuple:
+        return tuple(int(x) if x.isdigit() else 0 for x in re.split(r"[.\-]", v))
+    vers = [str(o.get("otaVer")) for o in ota if o.get("hardwareVer") == hardware and o.get("otaVer")]
+    return max(vers, key=key) if vers else None
+
+
+def reprint_params(file_name: str) -> dict[str, str]:
+    """The command that starts a file from the printer's own storage. Only plain .gcode file names."""
+    if not _SAFE_FILE.match(file_name or ""):
+        raise ValueError("not a printable file name")
+    return {"opGcodeFile": "printprt:" + GCODE_DIR + file_name}
+
+
+class CrealityCloud:
+    """Login, printers, history, timelapses, firmware and a fixed set of commands. Re-logs in when the token expires."""
+
+    def __init__(self, session: aiohttp.ClientSession, email: str, password: str, token: dict | None = None,
+                 region: str = "international") -> None:
         self._s = session
         self._email = email
         self._password = password
         self.token: dict | None = token  # {"token": ..., "uid": ...}
+        self.region = REGIONS.get(region, REGIONS["international"])
 
     @staticmethod
     def _headers(extra: dict[str, str]) -> dict[str, str]:
@@ -168,9 +270,11 @@ class CrealityCloud:
             raise CrealityError(str(ex)) from ex
 
     async def login(self) -> dict:
+        account = self._email.strip()
+        kind = 2 if "@" in account else 1   # 1 = phone number (China region), 2 = e-mail
         b = await self._post(
-            ID_HOST + LOGIN,
-            {"type": 2, "account": self._email, "password": self._password, "clientId": CLIENT_ID},
+            self.region["id"] + LOGIN,
+            {"type": kind, "account": account, "password": self._password, "clientId": self.region["client_id"]},
             self._headers({"__CXY_APP_ID_": "creality_account", "__CXY_APP_VER_": "0.0.1", "__CXY_PLATFORM_": "pc"}),
         )
         res = b.get("result") or {}
@@ -184,7 +288,7 @@ class CrealityCloud:
             if not self.token or attempt:
                 await self.login()
             b = await self._post(
-                API_HOST + path,
+                self.region["api"] + path,
                 data,
                 self._headers({"__CXY_APP_ID_": "cxy-gen2", "__CXY_APP_VER_": APP_VER,
                                "__CXY_TOKEN_": self.token["token"], "__CXY_UID_": str(self.token["uid"])}),
@@ -207,9 +311,37 @@ class CrealityCloud:
             out[p.id] = p
         return out
 
+    async def history(self, printer: Printer, size: int = 10) -> list[PrintRecord]:
+        res = await self.call(HISTORY, {"page": 1, "pageSize": size, "deviceName": printer.raw.get("deviceName") or printer.id}) or {}
+        records = [parse_record(r) for r in res.get("list") or []]
+        if any(r.timelapse_id for r in records):
+            vids = await self.call(TIMELAPSES, {"page": 1, "pageSize": 30}) or {}
+            attach_timelapses(records, vids.get("list") or [])
+        return records
+
+    async def latest_firmware(self, hardware: str | None, pages: int = 6) -> str | None:
+        found: list[dict] = []
+        for page in range(1, pages + 1):
+            res = await self.call(OTA, {"page": page, "pageSize": 50}) or {}
+            items = res.get("list") or []
+            found += items
+            if latest_firmware(items, hardware) or len(items) < 50:
+                break
+        return latest_firmware(found, hardware)
+
     async def command(self, printer: Printer, name: str) -> None:
         if name not in COMMANDS:
             raise ValueError("unknown command %s" % name)
+        await self._rpc(printer, COMMANDS[name])
+
+    async def reprint(self, printer: Printer, file_name: str) -> None:
+        """Print a file again from the printer's own storage. Refused while the printer is busy or offline."""
+        params = reprint_params(file_name)
+        if not printer.online or printer.active:
+            raise CrealityError("the printer must be online and idle to start a print")
+        await self._rpc(printer, params)
+
+    async def _rpc(self, printer: Printer, params: dict) -> None:
         if not printer.tb_id:
             raise CrealityError("printer has no cloud id")
-        await self.call(RPC + printer.tb_id, {"method": "set", "params": COMMANDS[name]})
+        await self.call(RPC + printer.tb_id, {"method": "set", "params": params})

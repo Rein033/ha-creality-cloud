@@ -3,9 +3,10 @@
     "step": {
       "user": {
         "title": "Creality Cloud",
-        "description": "Log in met je Creality Cloud-account (crealitycloud.com). Alleen de internationale regio wordt ondersteund.",
+        "description": "Log in met je Creality Cloud-account. Gebruik je e-mailadres, of je telefoonnummer voor de regio China.",
         "data": {
-          "email": "E-mailadres",
+          "region": "Regio",
+          "email": "E-mailadres of telefoonnummer",
           "password": "Wachtwoord"
         }
       },
@@ -44,6 +45,9 @@
       },
       "cancel": {
         "name": "Print annuleren"
+      },
+      "reprint_last": {
+        "name": "Laatste bestand opnieuw printen"
       }
     },
     "image": {
@@ -101,6 +105,65 @@
       },
       "error_code": {
         "name": "Foutcode"
+      },
+      "last_print": {
+        "name": "Laatste print"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Meldingen",
+        "description": "Stuur een melding naar deze toestellen als er iets met een printer gebeurt.",
+        "data": {
+          "notify_targets": "Versturen naar",
+          "notify_events": "Wanneer",
+          "notify_image": "Voorbeeld van de print als afbeelding meesturen"
+        },
+        "data_description": {
+          "notify_targets": "Telefoons en andere notify-diensten. Leeg laten voor geen meldingen."
+        }
+      }
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "international": "Internationaal (crealitycloud.com)",
+        "china": "China (crealitycloud.cn)"
+      }
+    },
+    "notify_event": {
+      "options": {
+        "finished": "Print klaar",
+        "failed": "Print mislukt",
+        "stopped": "Print geannuleerd",
+        "paused": "Print gepauzeerd",
+        "started": "Print gestart",
+        "offline": "Printer offline",
+        "error": "Printer meldt een fout"
+      }
+    }
+  },
+  "services": {
+    "reprint": {
+      "name": "Opnieuw printen",
+      "description": "Start een bestand van de opslag van de printer opnieuw. Alleen als de printer online en vrij is.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "Printer"
+        },
+        "file_name": {
+          "name": "Bestandsnaam",
+          "description": "Naam van het .gcode-bestand op de printer, zoals in de printgeschiedenis."
+        }
       }
     }
   }

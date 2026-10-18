@@ -1,0 +1,12 @@
+reprint:
+  fields:
+    device_id:
+      required: true
+      selector:
+        device:
+          integration: creality_cloud
+    file_name:
+      required: true
+      example: "Benchy.stl_PLA_1h12m3s.gcode"
+      selector:
+        text:

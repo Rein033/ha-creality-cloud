@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 – 2026-10-18
+
+- Notifications: pick in the integration's options which phones (or other notify services) get a message, and for
+  which events (finished, failed, cancelled, paused, started, offline, error). With the print preview as picture.
+- Print history: sensor "Last print" with the recent prints as attribute, and a history popup on the card.
+- Timelapse: play a print's timelapse in a popup inside Home Assistant (when the printer records one).
+- Print again: button "Print last file again", service `creality_cloud.reprint`, and a button per print in the
+  history popup. Only when the printer is online and idle, and only files on the printer's own storage.
+- Firmware: update entity that shows when Creality has released newer firmware for the printer's hardware.
+- New card `custom:creality-print-group-card`: all printers in one compact list, with visual editor.
+- Region select menu when adding the integration: International (crealitycloud.com) or China (crealitycloud.cn,
+  log in with e-mail or phone number).
+
 ## 0.2.0 – 2026-10-18
 
 - Card: drawn printer with the print growing inside it (K1 Max style, and Kobra S1 with the ACE Pro and its spool colours).

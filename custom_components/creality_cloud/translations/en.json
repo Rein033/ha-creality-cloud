@@ -3,9 +3,10 @@
     "step": {
       "user": {
         "title": "Creality Cloud",
-        "description": "Log in with your Creality Cloud account (crealitycloud.com). Only the international region is supported.",
+        "description": "Log in with your Creality Cloud account. Use your e-mail address, or your phone number for the China region.",
         "data": {
-          "email": "E-mail",
+          "region": "Region",
+          "email": "E-mail or phone number",
           "password": "Password"
         }
       },
@@ -44,6 +45,9 @@
       },
       "cancel": {
         "name": "Cancel print"
+      },
+      "reprint_last": {
+        "name": "Print last file again"
       }
     },
     "image": {
@@ -101,6 +105,65 @@
       },
       "error_code": {
         "name": "Error code"
+      },
+      "last_print": {
+        "name": "Last print"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Notifications",
+        "description": "Send a notification to these devices when something happens with a printer.",
+        "data": {
+          "notify_targets": "Send to",
+          "notify_events": "When",
+          "notify_image": "Add the print preview as picture"
+        },
+        "data_description": {
+          "notify_targets": "Phones and other notify services. Leave empty for no notifications."
+        }
+      }
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "international": "International (crealitycloud.com)",
+        "china": "China (crealitycloud.cn)"
+      }
+    },
+    "notify_event": {
+      "options": {
+        "finished": "Print finished",
+        "failed": "Print failed",
+        "stopped": "Print cancelled",
+        "paused": "Print paused",
+        "started": "Print started",
+        "offline": "Printer went offline",
+        "error": "Printer reports an error"
+      }
+    }
+  },
+  "services": {
+    "reprint": {
+      "name": "Print again",
+      "description": "Start a file from the printer's own storage again. Only when the printer is online and idle.",
+      "fields": {
+        "device_id": {
+          "name": "Printer",
+          "description": "Printer"
+        },
+        "file_name": {
+          "name": "File name",
+          "description": "Name of the .gcode file on the printer, as shown in the print history."
+        }
       }
     }
   }

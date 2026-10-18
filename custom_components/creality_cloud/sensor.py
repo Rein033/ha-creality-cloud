@@ -53,6 +53,7 @@ SENSORS: tuple[CrealitySensorDescription, ...] = (
 async def async_setup_entry(hass: HomeAssistant, entry: CrealityConfigEntry, add: AddEntitiesCallback) -> None:
     c = entry.runtime_data
     add(CrealitySensor(c, pid, d) for pid in c.data for d in SENSORS)
+    add(LastPrint(c, pid, "last_print") for pid in c.data)
 
 
 class CrealitySensor(CrealityEntity, SensorEntity):
@@ -71,3 +72,27 @@ class CrealitySensor(CrealityEntity, SensorEntity):
         if self.entity_description.key == "job_name":   # same attribute names as the Anycubic integration uses
             return parse_job(self.printer.job) or None
         return None
+
+
+class LastPrint(CrealityEntity, SensorEntity):
+    """The most recent print; the attribute "history" holds the last prints for the card (timelapse, print again)."""
+
+    _attr_icon = "mdi:history"
+
+    @property
+    def _records(self):
+        return self.coordinator.history.get(self.printer_id) or []
+
+    @property
+    def native_value(self) -> str | None:
+        r = self._records
+        return (r[0].name.rsplit("/", 1)[-1][:250] or None) if r else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        r = self._records
+        return {
+            "history": [x.as_dict() for x in r],
+            "last_state": r[0].state if r else None,
+            "prints_finished": sum(1 for x in r if x.state == "finished"),
+        }
