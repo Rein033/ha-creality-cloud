@@ -374,7 +374,17 @@ class CrealityPrintCard extends HTMLElement {
     this._dialog.update(this._hass, this._snap);
   }
 
-  disconnectedCallback() { if (this._dialog) { this._dialog.remove(); this._dialog = null; } }
+  connectedCallback() {
+    if (!this._io && 'IntersectionObserver' in window) {
+      this._io = new IntersectionObserver((entries) => this.toggleAttribute('paused', !entries[0].isIntersecting));
+    }
+    if (this._io) this._io.observe(this);
+  }
+
+  disconnectedCallback() {
+    if (this._io) this._io.disconnect();
+    if (this._dialog) { this._dialog.remove(); this._dialog = null; }
+  }
 }
 
 
@@ -397,6 +407,12 @@ function printPart(id, { x, y, w, h, progress, thumb, tint }) {
     <image href="${esc(thumb)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMax meet" clip-path="url(#${id}-done)" ${filter}/>`;
 }
 
+/* The toolhead lives in its own transparent layer on top of the drawing. Only that layer slides back and forth while
+   printing (a transform, done by the compositor), so the drawing itself is never repainted for the animation. */
+function headLayer(viewBox, moving, inner) {
+  return `<svg viewBox="${viewBox}" class="headlayer ${moving ? 'moving' : ''}" aria-hidden="true">${inner}</svg>`;
+}
+
 /* Creality K1 Max style: dark cube, glass door, CoreXY toolhead above the print. Original artwork. */
 function k1Svg(id, o) {
   const pTop = 92 + 104 * (1 - o.progress / 100);   // top of the printed part
@@ -415,21 +431,17 @@ function k1Svg(id, o) {
     <rect x="76" y="198" width="148" height="7" rx="2" fill="#4a4a50"/>
     <rect x="80" y="196" width="140" height="3" rx="1.5" fill="#6d6d75"/>
     <g>${printPart(id, { x: 98, y: 92, w: 104, h: 104, progress: o.progress, thumb: o.thumb, tint: o.tint })}</g>
-    <g class="gantry" style="transform: translateY(${headY - 86}px)">
-      <rect x="72" y="78" width="156" height="5" rx="2.5" fill="#55555c"/>
-      <g class="head">
-        <rect x="134" y="70" width="32" height="20" rx="4" fill="#d7d7dc"/>
-        <rect x="138" y="74" width="24" height="3" rx="1.5" fill="#9a9aa2"/>
-        <path d="M144 90h12l-3 7h-6z" fill="#e8a33a"/>
-      </g>
-    </g>
+    <rect x="72" y="${78 + headY - 86}" width="156" height="5" rx="2.5" fill="#55555c"/>
     <rect x="68" y="44" width="164" height="168" rx="6" fill="url(#${id}-glass)" stroke="#3b3b40" stroke-width="2"/>
     <path d="M92 52l-16 40M108 52l-26 62" stroke="#fff" stroke-opacity=".07" stroke-width="5" stroke-linecap="round"/>
     <rect x="226" y="120" width="4" height="34" rx="2" fill="#4a4a50"/>
     <rect x="70" y="220" width="62" height="16" rx="3" fill="#0e0e10" stroke="#38383d"/>
     <rect x="73" y="223" width="22" height="10" rx="1.5" fill="${o.active ? '#1e88e5' : '#2a2a2e'}" opacity=".9"/>
     <rect x="62" y="243" width="20" height="6" rx="2" fill="#2a2a2e"/><rect x="218" y="243" width="20" height="6" rx="2" fill="#2a2a2e"/>
-  </svg>`;
+  </svg>${headLayer('0 0 300 260', o.printing, `<g transform="translate(0 ${headY - 86})">
+      <rect x="134" y="70" width="32" height="20" rx="4" fill="#d7d7dc"/>
+      <rect x="138" y="74" width="24" height="3" rx="1.5" fill="#9a9aa2"/>
+      <path d="M144 90h12l-3 7h-6z" fill="#e8a33a"/></g>`)}`;
 }
 
 /* Anycubic Kobra S1 style with ACE Pro on top: four spools in their real colours, active slot outlined. Original artwork. */
@@ -466,20 +478,18 @@ function kobraSvg(id, o) {
     <rect x="70" y="112" width="160" height="150" rx="5" fill="url(#${id}-led)"/>
     <rect x="80" y="244" width="140" height="7" rx="2" fill="#c9ccd2"/>
     <g>${printPart(id, { x: 104, y: 132, w: 92, h: 112, progress: o.progress, thumb: o.thumb, tint: o.tint })}</g>
-    <g class="gantry" style="transform: translateY(${headY - 126}px)">
+    <g transform="translate(0 ${headY - 126})">
       <rect x="74" y="120" width="152" height="6" rx="3" fill="#b8bcc4"/>
       <rect x="74" y="118" width="10" height="10" rx="2" fill="#3a3a40"/><rect x="216" y="118" width="10" height="10" rx="2" fill="#3a3a40"/>
-      <g class="head">
-        <rect x="132" y="110" width="36" height="22" rx="4" fill="#26272b"/>
-        <rect x="150" y="114" width="4" height="12" rx="2" fill="#4fc3f7"/>
-        <path d="M144 132h12l-3 7h-6z" fill="#e0e0e0"/><path d="M148 139h4l-2 3z" fill="#e8a33a"/>
-      </g>
     </g>
     <rect x="70" y="112" width="160" height="150" rx="5" fill="url(#${id}-glass)" stroke="#2f2f34" stroke-width="2"/>
     <path d="M96 120l-18 44M112 120l-24 58" stroke="#fff" stroke-opacity=".35" stroke-width="4" stroke-linecap="round"/>
     <rect x="60" y="264" width="180" height="20" rx="6" fill="#1c1c1f"/>
     <rect x="72" y="284" width="22" height="6" rx="2" fill="#38383d"/><rect x="206" y="284" width="22" height="6" rx="2" fill="#38383d"/>
-  </svg>`;
+  </svg>${headLayer('0 0 300 300', o.printing, `<g transform="translate(0 ${headY - 126})">
+      <rect x="132" y="110" width="36" height="22" rx="4" fill="#26272b"/>
+      <rect x="150" y="114" width="4" height="12" rx="2" fill="#4fc3f7"/>
+      <path d="M144 132h12l-3 7h-6z" fill="#e0e0e0"/><path d="M148 139h4l-2 3z" fill="#e8a33a"/></g>`)}`;
 }
 
 const CSS = `<style>
@@ -506,6 +516,11 @@ const CSS = `<style>
   .stage { position: relative; margin: 8px 0 4px; }
   .draw { position: relative; max-width: 300px; margin: 0 auto; cursor: pointer; }
   .printer { display: block; width: 100%; height: auto; }
+  .headlayer { position: absolute; left: 0; top: 0; width: 100%; height: auto; pointer-events: none; }
+  .headlayer.moving { animation: cpc-head 2.8s ease-in-out infinite alternate; will-change: transform; }
+  :host([paused]) .headlayer.moving { animation-play-state: paused; }
+  @keyframes cpc-head { from { transform: translateX(-11%); } to { transform: translateX(11%); } }
+  @media (prefers-reduced-motion: reduce) { .headlayer.moving { animation: none; } }
   .pct.float { right: 4%; bottom: 12%; }
   .under .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0; text-align: center; }
   .views { position: absolute; left: 0; bottom: 6px; display: flex; gap: 4px; padding: 4px; border-radius: 999px;

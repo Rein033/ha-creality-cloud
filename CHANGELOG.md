@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3 – 2026-10-18
+
+- Card: the toolhead moves again while printing, now on its own layer that the browser only moves (no repaint of the
+  drawing). It pauses when the card is off screen and respects "reduce motion".
+
 ## 0.3.2 – 2026-10-18
 
 - Card: much lighter. No more endless toolhead animation (it made the browser repaint the whole drawing every frame,
