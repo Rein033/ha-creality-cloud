@@ -213,7 +213,9 @@ class CrealityPrintCard extends HTMLElement {
   static getConfigElement() { return document.createElement('creality-print-card-editor'); }
 
   static getStubConfig(hass) {
-    const p = allPrinters(hass)[0];
+    // prefer a printer that is online, and Creality Cloud before other integrations
+    const rank = (p) => { const s = snapshot(hass, p.entity); return (s && s.online ? 0 : 2) + (p.platform === 'creality_cloud' ? 0 : 1); };
+    const p = allPrinters(hass).sort((a, b) => rank(a) - rank(b))[0];
     return { entity: p ? p.entity : 'sensor.k1_max_status' };
   }
 

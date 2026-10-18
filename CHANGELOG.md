@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 – 2026-10-18
+
+- Card picker: a new card now picks an online printer first, and Creality Cloud before other integrations.
+
 ## 0.3.0 – 2026-10-18
 
 - Notifications: pick in the integration's options which phones (or other notify services) get a message, and for
