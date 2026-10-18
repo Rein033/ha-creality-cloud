@@ -3,6 +3,7 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
 [![Validate](https://github.com/Rein033/ha-creality-cloud/actions/workflows/validate.yml/badge.svg)](https://github.com/Rein033/ha-creality-cloud/actions/workflows/validate.yml)
 [![Release](https://img.shields.io/github/v/release/Rein033/ha-creality-cloud)](https://github.com/Rein033/ha-creality-cloud/releases)
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-rein033-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/rein033)
 
 Monitor and control **Creality 3D printers** (K1, K1 Max, K1C and other printers that show up in the Creality Cloud app)
 from Home Assistant, through **Creality Cloud**. Comes with its own dashboard card.
@@ -212,6 +213,10 @@ Commands are the same messages as the printer's local websocket: `pause`, `stop`
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](CHANGELOG.md).
+
+## Support
+
+Everything here is free. If it saves you time or makes your dashboard nicer, you can [buy me a coffee](https://buymeacoffee.com/rein033) ☕
 
 ## License
 
