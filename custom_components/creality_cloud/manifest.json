@@ -1,0 +1,18 @@
+{
+  "domain": "creality_cloud",
+  "name": "Creality Cloud",
+  "after_dependencies": [
+    "frontend",
+    "http"
+  ],
+  "codeowners": [
+    "@Rein033"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/Rein033/ha-creality-cloud",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Rein033/ha-creality-cloud/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

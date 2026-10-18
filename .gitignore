@@ -1,0 +1,8 @@
+# never commit credentials or tokens
+secrets.yaml
+*.token
+.env
+creality.json
+.venv/
+__pycache__/
+.pytest_cache/

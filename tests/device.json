@@ -1,0 +1,285 @@
+{
+ "id": "test",
+ "entityType": 0,
+ "createTime": 1760733439000,
+ "deviceId": 1,
+ "userId": 1,
+ "aliasName": "K1 Max-TEST",
+ "deviceName": "TESTDEVICE",
+ "productKey": "",
+ "regionId": 5,
+ "deviceSecret": "",
+ "networkType": 1,
+ "iotId": "",
+ "regRegion": "us-east-1",
+ "macAddress": "000000000000",
+ "wifiSsid": "CXSWBox-TEST",
+ "syDid": "",
+ "syLicense": "",
+ "type": 9,
+ "tbId": "00000000-test-tbid",
+ "iotType": 2,
+ "ownerUserId": 1,
+ "auth": 2147483647,
+ "auths": [
+  1,
+  2,
+  3,
+  4
+ ],
+ "deviceState": 1,
+ "addTime": 1760733439,
+ "model": "CR-K1 Max",
+ "tfCard": 1,
+ "connect": 1,
+ "video": 1,
+ "printerVersion": "1.3.5.22",
+ "dProgress": 0,
+ "upgradeStatus": 0,
+ "printInfo": {
+  "printId": "6ad4db786418247fd749fcb8",
+  "printProgress": 23,
+  "printLeftTime": 18149,
+  "gcodeId": "",
+  "gcodeThumbnail": "https://pic2-cdn.creality.com/gcode/thumb/525284689e4079cf50c42c702ebe5d1f",
+  "modelName": "Skull_bowl_widened.stl_PLA_9h0m56s.gcode"
+ },
+ "idleState": 1,
+ "printSliceCount": 0,
+ "keyFileToken": "",
+ "oldId": 1,
+ "parentDevice": "",
+ "bedTemp": "49",
+ "nozzleTemp": "219",
+ "boxTemp": "35",
+ "autoLeveling": 0,
+ "chatteringOpt": 0,
+ "feedState": 14,
+ "machineStatus": 1,
+ "deviceErrorCode": 0,
+ "factorySn": "TEST-SN",
+ "iotAttr": [
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "autoLeveling"
+  },
+  {
+   "lastUpdateTs": 1792334717855,
+   "value": 50,
+   "key": "bedTemp2"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "cfsInsert"
+  },
+  {
+   "lastUpdateTs": 1792334594811,
+   "value": 1792334590,
+   "key": "cfsUpdateTime"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "chatteringOpt"
+  },
+  {
+   "lastUpdateTs": 1792326805019,
+   "value": 1,
+   "key": "connect"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "err"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "",
+   "key": "errSubType"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": [
+    "videoInfo.videoEncryption"
+   ],
+   "key": "features"
+  },
+  {
+   "lastUpdateTs": 1792334093523,
+   "value": 14,
+   "key": "feedState"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "K1Max-TEST",
+   "key": "hostname"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 1,
+   "key": "led_state"
+  },
+  {
+   "lastUpdateTs": 1792334712309,
+   "value": 1,
+   "key": "machineStatus"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "CR-K1 Max",
+   "key": "model"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "printer hw ver:CR4CU220812S11;printer sw ver:1.3.5.22;DWIN hw ver:;DWIN sw ver:;",
+   "key": "modelVersion"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "multicolor"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "192.0.2.10",
+   "key": "netIP"
+  },
+  {
+   "lastUpdateTs": 1792326964088,
+   "value": 1,
+   "key": "nozzleMoveSnapshot"
+  },
+  {
+   "lastUpdateTs": 1792335009109,
+   "value": 220,
+   "key": "nozzleTemp2"
+  },
+  {
+   "lastUpdateTs": 1792334717855,
+   "value": "Skull_bowl_widened.stl_PLA_9h0m56s.gcode",
+   "key": "print"
+  },
+  {
+   "lastUpdateTs": 1792334712401,
+   "value": "6ad4db786418247fd749fcb8",
+   "key": "printId"
+  },
+  {
+   "lastUpdateTs": 1792334717855,
+   "value": 1792334710,
+   "key": "printStartTime"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "1.3.5.22",
+   "key": "printerVersion"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": "TEST-SN",
+   "key": "productionSn"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "repoPlrStatus"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "report_consumables"
+  },
+  {
+   "lastUpdateTs": 1792334982087,
+   "value": 100,
+   "key": "selfTestStep"
+  },
+  {
+   "lastUpdateTs": 1792334712401,
+   "value": 1,
+   "key": "state"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 1,
+   "key": "support3mf"
+  },
+  {
+   "lastUpdateTs": 1792326799000,
+   "value": 1,
+   "key": "tfCard"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "upgradeStatus"
+  },
+  {
+   "lastUpdateTs": 1792326786997,
+   "value": 1,
+   "key": "video"
+  },
+  {
+   "lastUpdateTs": 1792326964088,
+   "value": 1,
+   "key": "videoElapse"
+  },
+  {
+   "lastUpdateTs": 1792326780961,
+   "value": 0,
+   "key": "withSelfTest"
+  },
+  {
+   "lastUpdateTs": 1792325393645,
+   "value": true,
+   "key": "active"
+  }
+ ],
+ "iotTelemetry": [
+  {
+   "lastUpdateTs": 1792334767921,
+   "value": 49,
+   "key": "bedTemp"
+  },
+  {
+   "lastUpdateTs": 1792338493533,
+   "value": 35,
+   "key": "boxTemp"
+  },
+  {
+   "lastUpdateTs": 1792344443421,
+   "value": 23,
+   "key": "printProgress"
+  },
+  {
+   "lastUpdateTs": 1792344803994,
+   "value": 18149,
+   "key": "printLeftTime"
+  },
+  {
+   "lastUpdateTs": 1792344524533,
+   "value": 219,
+   "key": "nozzleTemp"
+  },
+  {
+   "lastUpdateTs": 1792336414019,
+   "value": 125,
+   "key": "curFeedratePct"
+  },
+  {
+   "lastUpdateTs": 1792326780868,
+   "value": 0,
+   "key": "dProgress"
+  },
+  {
+   "lastUpdateTs": 1792326807007,
+   "value": 100,
+   "key": "curFlowratePct"
+  }
+ ],
+ "support3mf": 1,
+ "multicolor": 0,
+ "firmwareVersion": "1.3.5.22"
+}
