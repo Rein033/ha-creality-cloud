@@ -123,27 +123,53 @@ function fmtLength(v, unit) {
   return mm >= 1000 ? `${(mm / 1000).toFixed(1)} m` : `${Math.round(mm)} mm`;
 }
 
+/* Looking through all entities is the expensive part, and Home Assistant hands every card a new hass object on every
+   state change anywhere. hass.entities only changes when entities are added or removed, so cache per that object. */
+const CACHE = new WeakMap();
+function cacheFor(hass) {
+  const reg = hass.entities || {};
+  let c = CACHE.get(reg);
+  if (!c) { c = { resolved: new Map(), printers: null }; CACHE.set(reg, c); }
+  return c;
+}
+
 /* All printers of both integrations: [{entity, platform, device_id}] (one anchor entity per device). */
 function allPrinters(hass) {
+  const cache = cacheFor(hass);
+  if (cache.printers) return cache.printers;
   const out = [];
   for (const e of Object.values(hass.entities || {})) {
     const A = ADAPTERS[e.platform];
     if (A && e.translation_key === A.anchor && e.device_id) out.push({ entity: e.entity_id, platform: e.platform, device_id: e.device_id });
   }
+  cache.printers = out;
   return out;
+}
+
+/* role -> entity_id for the printer that entityId belongs to (cached). */
+function resolve(hass, entityId) {
+  const cache = cacheFor(hass);
+  if (cache.resolved.has(entityId)) return cache.resolved.get(entityId);
+  const first = (hass.entities || {})[entityId];
+  const A = first && ADAPTERS[first.platform];
+  let r = null;
+  if (first && first.device_id && A) {
+    const wanted = Object.fromEntries(Object.entries(A.roles).map(([role, tk]) => [tk, role]));
+    const ids = {};
+    for (const e of Object.values(hass.entities)) {
+      if (e.device_id === first.device_id && e.platform === first.platform && wanted[e.translation_key]) ids[wanted[e.translation_key]] = e.entity_id;
+    }
+    if (Object.keys(ids).length) r = { first, A, ids };
+  }
+  cache.resolved.set(entityId, r);
+  return r;
 }
 
 /* Everything the cards show about one printer, in one shape for both integrations. */
 function snapshot(hass, entityId, name) {
-  const first = (hass.entities || {})[entityId];
-  const A = first && ADAPTERS[first.platform];
-  if (!first || !first.device_id || !A) return null;
-  const wanted = Object.fromEntries(Object.entries(A.roles).map(([role, tk]) => [tk, role]));
-  const ids = {};
-  for (const e of Object.values(hass.entities)) {
-    if (e.device_id === first.device_id && e.platform === first.platform && wanted[e.translation_key]) ids[wanted[e.translation_key]] = e.entity_id;
-  }
-  if (!Object.keys(ids).length) return null;
+  const r = resolve(hass, entityId);
+  if (!r) return null;
+  const { first, A, ids } = r;
 
   const st = (r) => { const s = ids[r] && hass.states[ids[r]]; return s && !['unavailable', 'unknown'].includes(s.state) ? s : null; };
   const c = {
@@ -225,10 +251,11 @@ class CrealityPrintCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    const s = snapshot(hass, this._config.entity, this._config.name);
-    const key = this._view + (s ? snapKey(hass, s.ids) : 'none');
+    const r = resolve(hass, this._config.entity);
+    const key = this._view + (r ? snapKey(hass, r.ids) : 'none');
     if (key === this._key) return;
     this._key = key;
+    const s = snapshot(hass, this._config.entity, this._config.name);
     this._snap = s;
     this._render(s);
     if (this._dialog) this._dialog.update(hass, s);
@@ -479,10 +506,6 @@ const CSS = `<style>
   .stage { position: relative; margin: 8px 0 4px; }
   .draw { position: relative; max-width: 300px; margin: 0 auto; cursor: pointer; }
   .printer { display: block; width: 100%; height: auto; }
-  .gantry { transition: transform 1s ease; }
-  .printing .head { animation: cpc-move 2.6s ease-in-out infinite alternate; }
-  @keyframes cpc-move { from { transform: translateX(-34px); } to { transform: translateX(34px); } }
-  @media (prefers-reduced-motion: reduce) { .printing .head { animation: none; } }
   .pct.float { right: 4%; bottom: 12%; }
   .under .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0; text-align: center; }
   .views { position: absolute; left: 0; bottom: 6px; display: flex; gap: 4px; padding: 4px; border-radius: 999px;
@@ -708,11 +731,11 @@ class CrealityPrintGroupCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     const list = (this._config.entities && this._config.entities.length ? this._config.entities.map((e) => ({ entity: e })) : allPrinters(hass));
-    const snaps = list.map((p) => snapshot(hass, p.entity)).filter(Boolean)
-      .filter((s) => this._config.show_idle !== false || s.active || s.done);
-    const key = JSON.stringify(snaps.map((s) => snapKey(hass, s.ids)));
+    const key = list.map((p) => { const r = resolve(hass, p.entity); return r ? snapKey(hass, r.ids) : ''; }).join('|');
     if (key === this._key) return;
     this._key = key;
+    const snaps = list.map((p) => snapshot(hass, p.entity)).filter(Boolean)
+      .filter((s) => this._config.show_idle !== false || s.active || s.done);
     this._rows = snaps.length;
     this._render(snaps);
   }

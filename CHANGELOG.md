@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2 – 2026-10-18
+
+- Card: much lighter. No more endless toolhead animation (it made the browser repaint the whole drawing every frame,
+  which froze dashboards on tablets and with blurred themes).
+- Cards look up their printer's entities once instead of on every state change in Home Assistant (about 5x less work).
+
 ## 0.3.1 – 2026-10-18
 
 - Card picker: a new card now picks an online printer first, and Creality Cloud before other integrations.
