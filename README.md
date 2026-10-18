@@ -69,23 +69,35 @@ cloud integrations do.
 ## The card
 
 The integration serves its own card and loads it on every dashboard. You don't need to install anything else.
-
-Add it from the card picker (search for **Creality Print Card**) or with YAML:
+Add it from the card picker (search for **Creality Print Card**) and set it up in the visual editor, or use YAML:
 
 ```yaml
 type: custom:creality-print-card
 entity: sensor.k1_max_status   # any entity of the printer
 name: K1 Max                   # optional, defaults to the device name
+view: printer                  # printer (drawing) or preview (progress ring)
+show_slicer: true
+show_temperatures: true
+show_controls: true            # pause / resume / cancel and the light
+show_view_switch: true
 ```
 
-| Option | Required | Description |
+| Option | Default | Description |
 |---|---|---|
-| `entity` | yes | Any entity of the printer. The card finds the other entities through the device. |
-| `name` | no | Title on the card. |
+| `entity` | – | Any entity of the printer. The card finds the other entities through the device. |
+| `name` | device name | Title on the card. |
+| `view` | `printer` | Start view: the drawn printer with the print growing inside it, or the progress ring with the preview. |
+| `show_slicer` | `true` | Material, layer height, layers, filament used, slicer estimate and slicer. |
+| `show_temperatures` | `true` | Nozzle, bed and chamber (or ACE) temperature, with the target while heating. |
+| `show_controls` | `true` | Pause / resume / cancel while printing, and the light button. |
+| `show_view_switch` | `true` | The printer / preview switch on the card. |
 
-The card shows the print preview inside a progress ring, time remaining and finish time, temperatures (with the target
-while heating), the light, and pause / resume / cancel while a print runs. Tap a value to open its history. It follows
-your theme and language. Renaming entities does not break it.
+The printer drawings are original artwork. Tap a value to open its history. The card follows your theme and language,
+and renaming entities does not break it.
+
+**Anycubic printers too:** the card also works with printers of the
+[Anycubic Cloud integration](https://github.com/WaresWichall/hass-anycubic_cloud) (and its forks): it then shows a Kobra
+with the ACE Pro, its spool colours, layers and filament used.
 
 ## Automation examples
 

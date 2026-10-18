@@ -5,6 +5,7 @@ without notice. Only the international region (crealitycloud.com) is supported.
 """
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -33,6 +34,24 @@ COMMANDS: dict[str, dict[str, int]] = {
 }
 
 STATES = {0: "idle", 1: "printing", 2: "finished", 3: "failed", 4: "stopped", 5: "paused"}
+
+
+# Creality Print / OrcaSlicer name files like "Model.stl_PLA_8h35m17s.gcode" or "Model_PETG_0.2_1h02m3s.gcode"
+_JOB = re.compile(r"[._](?P<mat>[A-Z][A-Z0-9+-]{1,9})(?:_(?P<lh>0\.\d+))?_(?:(?P<d>\d+)d)?(?:(?P<h>\d+)h)?(?:(?P<m>\d+)m)?(?:(?P<s>\d+)s)?(?:\.gcode)?$")
+
+
+def parse_job(name: str | None) -> dict[str, Any]:
+    """Slicer info from the file name: material, layer height and the slicer's time estimate (seconds)."""
+    if not name:
+        return {}
+    m = _JOB.search(name)
+    if not m or not any(m.group(k) for k in "dhms"):
+        return {"file_name": name}
+    est = sum(int(m.group(k) or 0) * f for k, f in (("d", 86400), ("h", 3600), ("m", 60), ("s", 1)))
+    out: dict[str, Any] = {"file_name": name, "filament_types": [m.group("mat")], "slicer_estimate": est}
+    if m.group("lh"):
+        out["layer_height"] = float(m.group("lh"))
+    return out
 
 
 class CrealityError(Exception):

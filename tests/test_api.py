@@ -49,3 +49,14 @@ async def test_unknown_command_refused(device):
     cloud = CrealityCloud(None, "a@b.c", "x")
     with pytest.raises(ValueError):
         await cloud.command(parse_device(device), "gcode")
+
+
+def test_parse_job():
+    from custom_components.creality_cloud.api import parse_job
+
+    assert parse_job("Skull_bowl_widened.stl_PLA_8h35m17s.gcode") == {
+        "file_name": "Skull_bowl_widened.stl_PLA_8h35m17s.gcode", "filament_types": ["PLA"], "slicer_estimate": 30917}
+    j = parse_job("Bracket_PETG_0.16_1d2h3m.gcode")
+    assert j["filament_types"] == ["PETG"] and j["layer_height"] == 0.16 and j["slicer_estimate"] == 93780
+    assert parse_job("plain.gcode") == {"file_name": "plain.gcode"}
+    assert parse_job(None) == {}

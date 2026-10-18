@@ -12,6 +12,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
+from homeassistant.setup import async_when_setup
 
 from .api import CrealityCloud
 from .const import CONF_TOKEN, DOMAIN
@@ -30,9 +31,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if hass.http is not None:
         await hass.http.async_register_static_paths(
             [StaticPathConfig(CARD_URL, str(Path(__file__).parent / "www" / "creality-print-card.js"), True)])
-    if "frontend" in hass.config.components:
-        version = (await async_get_integration(hass, DOMAIN)).version
+    version = (await async_get_integration(hass, DOMAIN)).version
+
+    async def _frontend_ready(hass: HomeAssistant, component: str) -> None:
         add_extra_js_url(hass, "%s?v=%s" % (CARD_URL, version))
+
+    # frontend may still be starting; register the card as soon as it is there
+    async_when_setup(hass, "frontend", _frontend_ready)
     return True
 
 

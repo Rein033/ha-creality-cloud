@@ -13,7 +13,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import CrealityConfigEntry
-from .api import STATES, Printer
+from .api import STATES, Printer, parse_job
 from .entity import CrealityEntity
 
 
@@ -65,3 +65,9 @@ class CrealitySensor(CrealityEntity, SensorEntity):
     @property
     def native_value(self):
         return self.entity_description.value(self.printer)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        if self.entity_description.key == "job_name":   # same attribute names as the Anycubic integration uses
+            return parse_job(self.printer.job) or None
+        return None
