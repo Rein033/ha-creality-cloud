@@ -173,3 +173,11 @@ async def test_firmware_list_behind_printer(hass, printers):
     entry.runtime_data.async_update_listeners()
     fw = hass.states.get(_eid(hass, "update", "firmware"))
     assert fw.state == "off" and fw.attributes["latest_version"] == fw.attributes["installed_version"]
+
+
+
+async def test_history_right_after_boot(hass, printers):
+    """time.monotonic() is small on a freshly booted machine; history and firmware must still load at startup."""
+    with patch("custom_components.creality_cloud.coordinator.time.monotonic", return_value=12.0):
+        await _setup(hass, printers)
+    assert hass.states.get(_eid(hass, "sensor", "last_print")).state == "Benchy.stl_PLA_1h2m3s.gcode"

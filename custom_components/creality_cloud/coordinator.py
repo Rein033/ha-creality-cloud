@@ -51,8 +51,8 @@ class CrealityCoordinator(DataUpdateCoordinator[dict[str, Printer]]):
         self.cloud = cloud
         self.history: dict[str, list[PrintRecord]] = {}
         self.firmware: dict[str, str | None] = {}
-        self._history_at = 0.0
-        self._firmware_at = 0.0
+        self._history_at: float | None = None   # None = never fetched (monotonic time can be small right after boot)
+        self._firmware_at: float | None = None
         self._last_thumb: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, Printer]:
@@ -69,10 +69,10 @@ class CrealityCoordinator(DataUpdateCoordinator[dict[str, Printer]]):
 
         changed = old is not None and any(old.get(k) and old[k].state != p.state for k, p in data.items())
         now = time.monotonic()
-        if changed or now - self._history_at > HISTORY_INTERVAL.total_seconds():
+        if changed or self._history_at is None or now - self._history_at > HISTORY_INTERVAL.total_seconds():
             self._history_at = now
             await self._refresh_history(data)
-        if now - self._firmware_at > FIRMWARE_INTERVAL.total_seconds():
+        if self._firmware_at is None or now - self._firmware_at > FIRMWARE_INTERVAL.total_seconds():
             self._firmware_at = now
             await self._refresh_firmware(data)
 
