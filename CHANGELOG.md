@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 – 2026-10-18
+
+- Own brand icon (`brand/icon.png`), so Home Assistant and HACS show an icon for the integration.
+
 ## 0.1.0 – 2026-10-18
 
 First release.
