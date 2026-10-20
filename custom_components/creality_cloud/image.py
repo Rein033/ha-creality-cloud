@@ -28,6 +28,11 @@ class Thumbnail(CrealityEntity, ImageEntity):
     def image_url(self) -> str | None:
         return self.printer.thumbnail
 
+    @property
+    def available(self) -> bool:
+        # no preview (Creality does not always send one): unavailable rather than a broken picture
+        return super().available and self.printer_id in self.coordinator.data and bool(self.printer.thumbnail)
+
     @callback
     def _handle_coordinator_update(self) -> None:
         if self.printer_id in self.coordinator.data and self.printer.thumbnail != self._url:

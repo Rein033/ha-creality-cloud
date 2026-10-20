@@ -204,6 +204,8 @@ function snapshot(hass, entityId, name) {
     progress: active ? Math.max(0, Math.min(100, c.num('progress') ?? 0)) : done ? 100 : 0,
     job: jobState ? cleanJob(jobAttr.file_name || jobState.state) : '',
     jobAttr, remaining,
+    // Creality sent no progress: the integration estimated it from the slicer time in the file name
+    est: !!(st('progress') && st('progress').attributes && st('progress').attributes.estimated) ? '≈' : '',
     ends: active ? (endsState && !isNaN(Date.parse(endsState.state)) ? new Date(endsState.state)
       : remaining != null ? new Date(Date.now() + remaining * 1000) : null) : null,
     // the image entity's state is a timestamp; Anycubic keeps it "unknown" but still serves the picture
@@ -299,17 +301,17 @@ class CrealityPrintCard extends HTMLElement {
           <circle class="track" cx="60" cy="60" r="52"></circle>
           <circle class="bar" cx="60" cy="60" r="52" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - s.progress / 100)}"></circle>
         </svg>
-        ${s.thumb ? `<img src="${esc(s.thumb)}" alt="">` : `<ha-icon class="ph" icon="mdi:printer-3d"></ha-icon>`}
-        ${active ? `<div class="pct">${Math.round(s.progress)}<small>%</small></div>` : ''}
+        ${s.thumb ? `<img src="${esc(s.thumb)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('ha-icon'), { className: 'ph', icon: 'mdi:printer-3d' }))">` : `<ha-icon class="ph" icon="mdi:printer-3d"></ha-icon>`}
+        ${active ? `<div class="pct">${s.est}${Math.round(s.progress)}<small>%</small></div>` : ''}
       </div>`;
     const o = { progress: s.progress, thumb: s.thumb, tint: s.tint, active, printing: state === 'printing', lightOn: s.lightOn, spools: s.spools };
     const drawing = `<div class="draw" data-more="${esc(ids.progress || ids.status)}">
         ${A.drawing === 'kobra' ? kobraSvg(this._uid, o) : k1Svg(this._uid, o)}
-        ${active ? `<div class="pct float">${Math.round(s.progress)}<small>%</small></div>` : ''}
+        ${active ? `<div class="pct float">${s.est}${Math.round(s.progress)}<small>%</small></div>` : ''}
       </div>`;
     const times = active ? `<div class="stats">
-        <div class="stat"><span class="label">${esc(this._t('remaining'))}</span><span class="big">${dur(s.remaining)}</span></div>
-        <div class="stat"><span class="label">${esc(this._t('ends'))}</span><span class="big">${esc(endTime)}</span></div>
+        <div class="stat"><span class="label">${esc(this._t('remaining'))}</span><span class="big">${s.remaining != null ? s.est : ''}${dur(s.remaining)}</span></div>
+        <div class="stat"><span class="label">${esc(this._t('ends'))}</span><span class="big">${s.ends ? s.est : ''}${esc(endTime)}</span></div>
       </div>` : '';
     const viewBtns = !show('show_view_switch') ? '' : `<div class="views" role="group">
         <button class="${this._view === 'printer' ? 'sel' : ''}" data-view="printer" title="${esc(this._t('viewPrinter'))}"><ha-icon icon="mdi:printer-3d"></ha-icon></button>
@@ -772,7 +774,7 @@ class CrealityPrintGroupCard extends HTMLElement {
           <div class="top"><span class="nm">${esc(s.name)}</span><span class="chip"><span class="dot"></span>${esc(this._t(s.state))}</span></div>
           <div class="job">${esc(s.active || s.done ? s.job : this._t('noJob'))}</div>
           ${s.active ? `<div class="bar"><i style="width:${s.progress}%"></i></div>
-            <div class="meta"><b>${Math.round(s.progress)}%</b><span>${esc(this._t('remaining'))} ${dur(s.remaining)}</span>${end ? `<span>${esc(this._t('ends'))} ${esc(end)}</span>` : ''}</div>`
+            <div class="meta"><b>${s.est}${Math.round(s.progress)}%</b><span>${esc(this._t('remaining'))} ${s.remaining != null ? s.est : ''}${dur(s.remaining)}</span>${end ? `<span>${esc(this._t('ends'))} ${esc(end)}</span>` : ''}</div>`
           : `<div class="meta">${nozzle != null ? `<span><ha-icon icon="mdi:printer-3d-nozzle-heat"></ha-icon>${Math.round(nozzle)}°</span>` : ''}${bed != null ? `<span><ha-icon icon="mdi:radiator"></ha-icon>${Math.round(bed)}°</span>` : ''}${s.update ? `<span class="upd"><ha-icon icon="mdi:package-up"></ha-icon>${esc(this._t('update'))}</span>` : ''}</div>`}
         </div>
       </div>`;

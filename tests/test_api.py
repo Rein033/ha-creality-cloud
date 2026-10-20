@@ -108,3 +108,28 @@ def test_reprint_only_plain_gcode_names():
 
 def test_hardware_version(device):
     assert parse_device(device).hardware == "CR4CU220812S11"
+
+
+def test_slicer_time_from_file_name():
+    from custom_components.creality_cloud.api import slicer_seconds
+    assert slicer_seconds("Skull_bowl_widened.stl_PLA_8h37m58s.gcode") == 8 * 3600 + 37 * 60 + 58
+    assert slicer_seconds("benchy_PLA_45m12s.gcode") == 45 * 60 + 12
+    assert slicer_seconds("vaas_1d2h3m.3mf") == (26 * 60 + 3) * 60
+    assert slicer_seconds("zonder_tijd.gcode") is None
+    assert slicer_seconds(None) is None
+
+
+def test_estimate_when_creality_sends_no_print_info():
+    import copy, time
+    from custom_components.creality_cloud.api import parse_device
+    from tests.conftest import DEVICE
+    d = copy.deepcopy(DEVICE)
+    d.pop("printInfo", None)
+    a = {x["key"]: x for x in d.get("iotAttr") or []}
+    start = int(time.time()) - 2 * 3600                       # twee uur bezig van een print van 8 uur
+    for k, v in (("state", 1), ("print", "Skull_PLA_8h0m0s.gcode"), ("printStartTime", start)):
+        if k in a: a[k]["value"] = v
+        else: d.setdefault("iotAttr", []).append({"key": k, "value": v})
+    p = parse_device(d)
+    assert p.state == "printing" and p.estimated
+    assert 24 <= p.progress <= 26 and 5.9 * 3600 <= p.remaining <= 6.1 * 3600

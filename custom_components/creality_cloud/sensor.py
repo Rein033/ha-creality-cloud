@@ -71,6 +71,8 @@ class CrealitySensor(CrealityEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any] | None:
         if self.entity_description.key == "job_name":   # same attribute names as the Anycubic integration uses
             return parse_job(self.printer.job) or None
+        if self.entity_description.key in ("progress", "time_remaining", "print_end") and self.printer.estimated:
+            return {"estimated": True}   # worked out from the slicer time in the file name; Creality sent no progress
         return None
 
 

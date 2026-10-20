@@ -120,6 +120,7 @@ class Printer:
     error: int | None
     thumbnail: str | None
     raw: dict[str, Any] = field(repr=False, default_factory=dict)
+    estimated: bool = False   # progress/remaining worked out from the slicer time in the file name (Creality sent nothing)
 
     @property
     def active(self) -> bool:
@@ -147,6 +148,25 @@ class PrintRecord:
                                               "on_printer", "timelapse", "timelapse_cover")}
 
 
+def slicer_seconds(job: str | None) -> int | None:
+    """Print time that slicers put in the file name, e.g. 'Skull_PLA_8h37m58s.gcode' -> 31078 (also '2d3h', '45m12s')."""
+    m = re.search(r"(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m(?!m))?(?:(\d+)s)?\.(?:gcode|3mf|bgcode)", str(job or ""), re.I)
+    if not m or not any(m.groups()):
+        return None
+    d, h, mi, se = (int(x or 0) for x in m.groups())
+    total = ((d * 24 + h) * 60 + mi) * 60 + se
+    return total or None
+
+
+def estimate(started: int | None, job: str | None, now: float | None = None) -> tuple[float, float] | None:
+    """(progress %, remaining seconds) from the start time and the slicer time; None when we cannot tell."""
+    total = slicer_seconds(job)
+    if not started or not total:
+        return None
+    elapsed = max(0.0, (now if now is not None else time.time()) - started)
+    return round(min(99.0, elapsed / total * 100), 1), max(0.0, total - elapsed)
+
+
 def parse_device(d: dict[str, Any]) -> Printer:
     """Turn one entry of getDeviceList into a Printer (no network; tested with tests/device.json)."""
     a = {x.get("key"): x.get("value") for x in d.get("iotAttr") or []}
@@ -155,7 +175,7 @@ def parse_device(d: dict[str, Any]) -> Printer:
     active = state in ("printing", "paused")
     led = a.get("led_state")
     hw = re.search(r"printer hw ver:([^;]+)", str(a.get("modelVersion") or ""))
-    return Printer(
+    printer = Printer(
         id=str(d.get("deviceName") or d.get("id")),
         tb_id=str(d.get("tbId") or ""),
         name=d.get("aliasName") or d.get("deviceName") or "Creality printer",
@@ -179,6 +199,13 @@ def parse_device(d: dict[str, Any]) -> Printer:
         thumbnail=media_url(p.get("gcodeThumbnail")) if active else None,
         raw=d,
     )
+    # Creality sometimes sends no printInfo at all (no progress, no time left): estimate from the slicer time in the name
+    if printer.state == "printing" and printer.progress is None and printer.remaining is None:
+        est = estimate(printer.started, printer.job)
+        if est:
+            printer.progress, printer.remaining = est
+            printer.estimated = True
+    return printer
 
 
 def parse_record(r: dict[str, Any]) -> PrintRecord:

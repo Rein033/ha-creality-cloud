@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.5 – 2026-10-20
+
+- When Creality Cloud sends no print info (no progress, no time left), progress, time remaining and ready-at are now
+  **estimated** from the slicer time in the file name (e.g. `…_8h37m58s.gcode`) and the start time. The sensors get the
+  attribute `estimated: true` and the cards show "≈".
+- No more broken preview picture: without a preview the image entity is unavailable and the card shows the printer icon
+  (also when a picture fails to load).
+
 ## 0.3.4 – 2026-10-20
 
 - Cards: no more "Configuration error" on recent Home Assistant versions. The frontend swaps its custom element registry
