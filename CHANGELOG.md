@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4 – 2026-10-20
+
+- Cards: no more "Configuration error" on recent Home Assistant versions. The frontend swaps its custom element registry
+  after extra modules have loaded; the cards now register themselves again when that happens.
+
 ## 0.3.3 – 2026-10-18
 
 - Card: the toolhead moves again while printing, now on its own layer that the browser only moves (no repaint of the

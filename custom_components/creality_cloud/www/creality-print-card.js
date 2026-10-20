@@ -847,7 +847,13 @@ class CrealityPrintGroupCardEditor extends HTMLElement {
   }
 }
 
-const define = (name, cls) => { if (!customElements.get(name)) customElements.define(name, cls); };
+// Home Assistant swaps window.customElements after extra modules have loaded: define the cards again (as subclasses)
+const _defs = [];
+const define = (name, cls) => { _defs.push([name, cls]); if (!customElements.get(name)) customElements.define(name, cls); };
+(() => { let n = 0; const t = setInterval(() => {
+  _defs.forEach(([name, cls]) => { if (!window.customElements.get(name)) window.customElements.define(name, class extends cls {}); });
+  if (++n > 240) clearInterval(t);
+}, 250); })();
 define('creality-print-dialog', CrealityPrintDialog);
 define('creality-print-card-editor', CrealityPrintCardEditor);
 define('creality-print-group-card-editor', CrealityPrintGroupCardEditor);
